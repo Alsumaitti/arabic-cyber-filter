@@ -1,0 +1,27 @@
+# ---------------------------------------------------------------------------
+# Large data artifacts are NOT tracked in git (multi-GB / >100 MB GitHub limit).
+# See README.md ("Data availability") for how to obtain or regenerate them.
+# ---------------------------------------------------------------------------
+
+# Source corpus shards (FineWeb2 sample, ~1.7 GB)
+FineWeb2/
+
+# Per-shard filtered outputs produced by the SLURM array job (~365 MB)
+output/
+
+# Final merged corpus (cyber_arabic_ALL.json / .csv, ~365 MB)
+result/
+
+# SLURM job logs
+logs/
+
+# Local tooling / environment
+.claude/
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# OS noise
+Thumbs.db
+.DS_Store
