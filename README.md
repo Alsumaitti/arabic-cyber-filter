@@ -9,6 +9,8 @@
 
 This project filters a 1,000,000-record sample of Arabic web text from [FineWeb2](https://huggingface.co/datasets/HuggingFaceFW/fineweb-2) down to a **13,345-record domain-specific cybersecurity corpus**, using a curated lexicon of **1,209 Arabic cybersecurity keywords and phrases**. Every record kept in the output carries the exact list of keywords that matched it — so the classification of every single record is human-verifiable, not a black box.
 
+A second **LLM-as-judge evaluation layer** then reads the documents and measures how good the keyword filter actually is: precision, recall, and exactly where it fails. See [Evaluation](#evaluation-llm-as-judge) below and [`evaluation/`](evaluation).
+
 The resulting corpus is intended as a foundation for training and evaluating Arabic language models in the cybersecurity domain.
 
 ---
@@ -26,6 +28,7 @@ The resulting corpus is intended as a foundation for training and evaluating Ara
   - [4. Parallel processing on SLURM](#4-parallel-processing-on-slurm)
 - [Output schema](#output-schema)
 - [Corpus statistics](#corpus-statistics)
+- [Evaluation (LLM-as-judge)](#evaluation-llm-as-judge)
 - [Usage](#usage)
   - [Local (single machine)](#local-single-machine)
   - [HPC cluster (SLURM array job)](#hpc-cluster-slurm-array-job)
@@ -85,12 +88,20 @@ flowchart TD
 arabic-cyber-filter/
 ├── scripts/
 │   ├── filter_cyber_arabic.py    # Stage 1: keyword filter (batch or single-shard mode)
-│   └── merge_cyber_outputs.py    # Stage 2: merge per-shard outputs into one corpus
+│   ├── merge_cyber_outputs.py    # Stage 2: merge per-shard outputs into one corpus
+│   └── llm_judge_api.py          # LLM-as-judge over the whole corpus (Claude Batches API)
 ├── sbatch_scripts/
 │   ├── filter_cyber_arabic.sh    # SLURM array job — one task per shard
 │   └── merge_cyber_outputs.sh    # SLURM merge job — run after the array finishes
 ├── keywords/
 │   └── arabic_cyber_keywords.txt # 1,209-term Arabic cybersecurity lexicon (one per line)
+├── evaluation/                   # LLM-as-judge verification: rubric, samples, metrics, results
+│   ├── JUDGE_PROTOCOL.md         #   the labelling rubric
+│   ├── make_samples.py / make_unmatched_sample.py / compute_metrics.py
+│   ├── judgments/                #   raw per-record verdicts (JSON)
+│   ├── judged_sample_matched.json/.csv  # 300 records + the 4 judge columns
+│   ├── metrics.json              #   computed precision / recall / F1
+│   └── EVALUATION.md / RESULTS.md
 ├── samples/
 │   └── sample_output.json        # 5 example records from the final corpus
 ├── FineWeb2/                     # (not tracked) input shards  *.jsonl.gz
@@ -192,6 +203,40 @@ Records with many distinct hits are very likely dedicated cybersecurity articles
 ### Top source domains
 
 `aljazeera.net`, `tech-wd.com`, `arabic.sputniknews.com`, `arabic.rt.com`, `isecur1ty.org`, `ara.reuters.com`, `support.microsoft.com`, `albayan.ae` — a healthy mix of major Arabic news outlets, dedicated Arabic tech/security sites, and vendor support pages.
+
+## Evaluation (LLM-as-judge)
+
+The keyword filter answers a mechanical question ("does this text contain a cybersecurity term?"), which is not the same as the question we care about ("is this document *about* cybersecurity?"). To measure the gap, a second layer has an LLM (Claude) **read** each document and return a structured verdict — `cyber` / `borderline` / `not_cyber`, a confidence, a one-sentence English justification citing the evidence, and a one-sentence topic summary. This turns the filter from "trust the keywords" into a *measured* classifier with precision and recall.
+
+Everything lives in [`evaluation/`](evaluation): the labelling rubric ([`JUDGE_PROTOCOL.md`](evaluation/JUDGE_PROTOCOL.md)), the sampling and metric scripts, the raw per-record verdicts, and the written interpretation ([`RESULTS.md`](evaluation/RESULTS.md)). A stratified sample of **300** matched records was judged for precision; the rejected records were sampled by [TREC-style pooling](evaluation/EVALUATION.md#recall--how-many-cybersecurity-documents-the-filter-missed) for recall.
+
+### Precision by keyword-hit count
+
+The single most important finding: **precision is driven almost entirely by how many distinct keywords a record hit.** A record matched by one incidental keyword is a weak signal; three or more is a strong one.
+
+| Distinct keyword hits | Corpus share | n judged | Strict precision (`cyber`) | Lenient precision (`cyber`+`borderline`) |
+|---|---|---|---|---|
+| 1 | 67.9% | 100 | **0.21** (0.14–0.30) | **0.58** (0.48–0.67) |
+| 2 | 16.6% | 80 | **0.51** (0.41–0.62) | **0.80** (0.70–0.87) |
+| 3–5 | 12.1% | 60 | **0.75** (0.63–0.84) | **0.98** (0.91–1.00) |
+| 6+ | 3.5% | 60 | **0.97** (0.89–0.99) | **1.00** (0.94–1.00) |
+| **Corpus-weighted** | 100% | 300 | **≈ 0.35** | **≈ 0.68** |
+
+_(Wilson 95% confidence intervals in parentheses; strata combined using their true corpus weights.)_
+
+**What this means, and why it's actionable:** the single-hit stratum is 68% of the corpus but only ~21% of it is substantively about cybersecurity — the rest are metaphorical matches ("Trojan horse" in politics, "back door" as a literal door), boilerplate privacy-policy clauses, and spam pages with an incidental "VPN" or "firewall". At 3+ hits, lenient precision is ≥ 98%. So filtering the existing corpus on `len(keywords_found) >= 2` — which the explainable `keywords_found` column makes trivial — lifts strict precision from ~0.35 to roughly ~0.6 and lenient precision to ~0.85 while keeping essentially all the genuine content. **The evidence trail doubles as a confidence score.** Full breakdown and the recurring false-positive patterns are in [`evaluation/RESULTS.md`](evaluation/RESULTS.md).
+
+### Judging the whole corpus
+
+To judge all 13,345 records (not just the sample), [`scripts/llm_judge_api.py`](scripts/llm_judge_api.py) runs the same rubric through the **Claude Message Batches API** (50% of standard price, structured-output JSON schema enforced). It writes the corpus back out with the four judge columns appended, resumable per chunk. Rough cost at defaults: ~USD 80–110 for the full corpus.
+
+```bash
+export ANTHROPIC_API_KEY=sk-ant-...        # or: ant auth login
+python scripts/llm_judge_api.py \
+    --input  result/cyber_arabic_ALL.json \
+    --out-prefix result/cyber_arabic_ALL_judged \
+    --limit 20                              # smoke-test on 20 records first; drop --limit for the full run
+```
 
 ## Usage
 
