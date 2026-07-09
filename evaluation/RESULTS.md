@@ -3,7 +3,7 @@
 Claude judged a stratified sample of **300** of the 13,345 keyword-matched
 records (plus a pooled sample of the rejected records for recall). Every verdict,
 with its English justification, is in [`judgments/`](judgments) and joined back
-to the source records in [`judged_sample_matched.json`](judged_sample_matched.json).
+to the source records in [`results/judged_sample_matched.json`](results/judged_sample_matched.json).
 
 ## Headline
 
@@ -52,7 +52,7 @@ Combining the strata with their true corpus weights (9062 / 2209 / 1610 / 464):
 ## Recall
 
 Recall was estimated by TREC-style pooling over the **986,655 rejected records**
-(see [`EVALUATION.md`](EVALUATION.md) § Recall). A deliberately broad safety-net
+(see [`README.md`](README.md) § Recall). A deliberately broad safety-net
 regex (loose Arabic + English cyber signals *not* in the strict lexicon) flagged
 **15,535** of them as candidate misses; a random **120** of that pool and a
 random **80** from the ~971k records *outside* the pool were judged.

@@ -18,6 +18,30 @@ An LLM (Claude) reads each sampled document and returns a structured verdict:
 
 The full labelling rubric is in [`JUDGE_PROTOCOL.md`](JUDGE_PROTOCOL.md).
 
+## Folder layout
+
+```
+evaluation/
+├── README.md               ← you are here (method overview)
+├── JUDGE_PROTOCOL.md        ← the exact labelling rubric
+├── RESULTS.md               ← written interpretation of the numbers
+├── scripts/                 ← the pipeline
+│   ├── make_samples.py          build the matched + unmatched samples
+│   ├── make_unmatched_sample.py standalone pooled-negative (recall) sampler
+│   └── compute_metrics.py       verdicts → precision / recall / F1 (Wilson CIs)
+├── samples/                 ← judge-view inputs shown to the LLM
+│   ├── sample_matched.json
+│   └── sample_unmatched.json
+├── judgments/               ← raw per-record verdicts
+│   ├── matched_*.json           (300 matched records)
+│   └── unmatched_*.json         (200 pooled records)
+└── results/                 ← computed outputs
+    ├── metrics.json             precision / recall / F1
+    ├── population_counts.json   stratum & pool sizes
+    ├── judged_sample_matched.json / .csv    original columns + 4 judge columns
+    └── judged_sample_unmatched.json / .csv
+```
+
 ## Why sampling instead of judging all 13,345
 
 Judging every record with a frontier LLM is the job of
@@ -51,8 +75,8 @@ Two precision figures are reported:
 
 Per-stratum rates are combined using each stratum's true corpus weight
 (9062 / 2209 / 1610 / 464) to get a single **corpus-weighted precision**, with
-Wilson 95% confidence intervals. See [`metrics.json`](metrics.json) for the
-numbers and [`RESULTS.md`](RESULTS.md) for the written interpretation.
+Wilson 95% confidence intervals. See [`results/metrics.json`](results/metrics.json)
+for the numbers and [`RESULTS.md`](RESULTS.md) for the written interpretation.
 
 ## Recall — how many cybersecurity documents the filter missed
 
@@ -77,26 +101,33 @@ it over-collects candidates rather than under-collecting.
 
 ## Reproducing
 
+All scripts derive their paths from their own location, so run them from anywhere.
+
 ```bash
 # 1. Build the samples (scans the 100 shards; deterministic, seed=42)
-python evaluation/make_samples.py
+#    → writes samples/sample_matched.json, samples/sample_unmatched.json
+python evaluation/scripts/make_samples.py
 
 # 2. Judge them — either with the batch API judge over the sample,
 #    or (as done here) an in-session LLM writing evaluation/judgments/*.json
 
-# 3. Compute the metrics
-python evaluation/compute_metrics.py     # writes evaluation/metrics.json
+# 3. Compute the metrics → writes results/metrics.json
+python evaluation/scripts/compute_metrics.py
 ```
 
-## Files
+`scripts/make_unmatched_sample.py` is a faster, standalone version of the
+pooled-negative (recall) scan, kept separate so the slow full-corpus pass can run
+on its own.
 
-| File | What it is |
+## Key files
+
+| Path | What it is |
 |---|---|
 | [`JUDGE_PROTOCOL.md`](JUDGE_PROTOCOL.md) | The exact labelling rubric and metric conventions |
-| [`make_samples.py`](make_samples.py) | Builds the stratified matched sample + pooled unmatched sample |
-| [`compute_metrics.py`](compute_metrics.py) | Turns verdicts into precision/recall/F1 with CIs |
-| [`judgments/`](judgments) | Raw per-record verdicts (JSON) |
-| [`judged_sample_matched.json`](judged_sample_matched.json) / `.csv` | The 300 matched records with original columns **+** the four judge columns |
-| `sample_matched.json`, `sample_unmatched.json` | The judge views that were shown to the LLM |
-| `metrics.json` | Final computed metrics |
 | [`RESULTS.md`](RESULTS.md) | Human-readable interpretation of the metrics |
+| [`scripts/`](scripts) | `make_samples.py`, `make_unmatched_sample.py`, `compute_metrics.py` |
+| [`samples/`](samples) | The judge views shown to the LLM (`sample_matched.json`, `sample_unmatched.json`) |
+| [`judgments/`](judgments) | Raw per-record verdicts (`matched_*.json`, `unmatched_*.json`) |
+| [`results/judged_sample_matched.json`](results/judged_sample_matched.json) / `.csv` | The 300 matched records with original columns **+** the four judge columns |
+| [`results/judged_sample_unmatched.json`](results/judged_sample_unmatched.json) / `.csv` | The 200 pooled records with verdicts |
+| [`results/metrics.json`](results/metrics.json) | Final computed precision / recall / F1 |

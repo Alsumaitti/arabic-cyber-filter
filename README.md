@@ -95,13 +95,14 @@ arabic-cyber-filter/
 │   └── merge_cyber_outputs.sh    # SLURM merge job — run after the array finishes
 ├── keywords/
 │   └── arabic_cyber_keywords.txt # 1,209-term Arabic cybersecurity lexicon (one per line)
-├── evaluation/                   # LLM-as-judge verification: rubric, samples, metrics, results
+├── evaluation/                   # LLM-as-judge verification (see evaluation/README.md)
+│   ├── README.md                 #   method overview + folder layout
 │   ├── JUDGE_PROTOCOL.md         #   the labelling rubric
-│   ├── make_samples.py / make_unmatched_sample.py / compute_metrics.py
-│   ├── judgments/                #   raw per-record verdicts (JSON)
-│   ├── judged_sample_matched.json/.csv  # 300 records + the 4 judge columns
-│   ├── metrics.json              #   computed precision / recall / F1
-│   └── EVALUATION.md / RESULTS.md
+│   ├── RESULTS.md                #   written interpretation of the numbers
+│   ├── scripts/                  #   make_samples.py, make_unmatched_sample.py, compute_metrics.py
+│   ├── samples/                  #   judge-view inputs shown to the LLM
+│   ├── judgments/                #   raw per-record verdicts (matched_*.json, unmatched_*.json)
+│   └── results/                  #   metrics.json + judged_sample_*.json/.csv (records + 4 judge columns)
 ├── samples/
 │   └── sample_output.json        # 5 example records from the final corpus
 ├── FineWeb2/                     # (not tracked) input shards  *.jsonl.gz
@@ -208,7 +209,7 @@ Records with many distinct hits are very likely dedicated cybersecurity articles
 
 The keyword filter answers a mechanical question ("does this text contain a cybersecurity term?"), which is not the same as the question we care about ("is this document *about* cybersecurity?"). To measure the gap, a second layer has an LLM (Claude) **read** each document and return a structured verdict — `cyber` / `borderline` / `not_cyber`, a confidence, a one-sentence English justification citing the evidence, and a one-sentence topic summary. This turns the filter from "trust the keywords" into a *measured* classifier with precision and recall.
 
-Everything lives in [`evaluation/`](evaluation): the labelling rubric ([`JUDGE_PROTOCOL.md`](evaluation/JUDGE_PROTOCOL.md)), the sampling and metric scripts, the raw per-record verdicts, and the written interpretation ([`RESULTS.md`](evaluation/RESULTS.md)). A stratified sample of **300** matched records was judged for precision; the rejected records were sampled by [TREC-style pooling](evaluation/EVALUATION.md#recall--how-many-cybersecurity-documents-the-filter-missed) for recall.
+Everything lives in [`evaluation/`](evaluation): the labelling rubric ([`JUDGE_PROTOCOL.md`](evaluation/JUDGE_PROTOCOL.md)), the sampling and metric scripts, the raw per-record verdicts, and the written interpretation ([`RESULTS.md`](evaluation/RESULTS.md)). A stratified sample of **300** matched records was judged for precision; the rejected records were sampled by [TREC-style pooling](evaluation/README.md#recall--how-many-cybersecurity-documents-the-filter-missed) for recall.
 
 ### Precision by keyword-hit count
 
@@ -228,7 +229,7 @@ _(Wilson 95% confidence intervals in parentheses; strata combined using their tr
 
 ### Recall
 
-Recall was estimated by [TREC-style pooling](evaluation/EVALUATION.md#recall--how-many-cybersecurity-documents-the-filter-missed) over the 986,655 rejected records: a broad safety-net regex flagged 15,535 candidate misses, of which ~15.8% (judged) were genuinely cybersecurity — extrapolating to **~2,460 false negatives**, while a random sample of the ~971k records outside the net found none. Against ~9,070 kept true positives:
+Recall was estimated by [TREC-style pooling](evaluation/README.md#recall--how-many-cybersecurity-documents-the-filter-missed) over the 986,655 rejected records: a broad safety-net regex flagged 15,535 candidate misses, of which ~15.8% (judged) were genuinely cybersecurity — extrapolating to **~2,460 false negatives**, while a random sample of the ~971k records outside the net found none. Against ~9,070 kept true positives:
 
 | Metric (lenient) | Value |
 |---|---|

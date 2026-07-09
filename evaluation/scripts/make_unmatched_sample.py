@@ -8,16 +8,21 @@ record (the topic is determinable there, it matches the window the judge sees,
 and it bounds the regex cost so a full-corpus scan finishes in a few minutes).
 
 Deterministic: random.seed(42).
-Writes evaluation/sample_unmatched.json and merges pool sizes into
-evaluation/population_counts.json.
+Writes evaluation/samples/sample_unmatched.json and merges pool sizes into
+evaluation/results/population_counts.json.
 """
 import glob, gzip, json, os, random, re, sys
 
 random.seed(42)
-ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+EVAL = os.path.dirname(SCRIPT_DIR)               # evaluation/
+ROOT = os.path.dirname(EVAL)                       # repo root
 OUT_DIR = os.path.join(ROOT, "output")
 FW_DIR = os.path.join(ROOT, "FineWeb2")
-EVAL = os.path.dirname(os.path.abspath(__file__))
+SAMPLES_DIR = os.path.join(EVAL, "samples")
+RESULTS_DIR = os.path.join(EVAL, "results")
+os.makedirs(SAMPLES_DIR, exist_ok=True)
+os.makedirs(RESULTS_DIR, exist_ok=True)
 
 SCAN_CHARS = 4000
 VIEW_HEAD = 700
@@ -95,10 +100,10 @@ for gi, gz in enumerate(gz_files):
 
 unmatched = pool + randoms
 random.shuffle(unmatched)
-json.dump(unmatched, open(os.path.join(EVAL, "sample_unmatched.json"), "w",
+json.dump(unmatched, open(os.path.join(SAMPLES_DIR, "sample_unmatched.json"), "w",
                           encoding="utf-8"), ensure_ascii=False, indent=1)
 
-pc_path = os.path.join(EVAL, "population_counts.json")
+pc_path = os.path.join(RESULTS_DIR, "population_counts.json")
 counts = {}
 if os.path.exists(pc_path):
     counts = json.load(open(pc_path, encoding="utf-8"))

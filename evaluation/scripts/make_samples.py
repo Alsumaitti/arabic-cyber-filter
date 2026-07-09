@@ -16,10 +16,15 @@ Deterministic: random.seed(42).
 import glob, gzip, json, os, random, re, sys
 
 random.seed(42)
-ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+EVAL_DIR = os.path.dirname(SCRIPT_DIR)          # evaluation/
+ROOT = os.path.dirname(EVAL_DIR)                 # repo root
 OUT_DIR = os.path.join(ROOT, "output")
 FW_DIR = os.path.join(ROOT, "FineWeb2")
-EVAL_DIR = os.path.dirname(os.path.abspath(__file__))
+SAMPLES_DIR = os.path.join(EVAL_DIR, "samples")
+RESULTS_DIR = os.path.join(EVAL_DIR, "results")
+os.makedirs(SAMPLES_DIR, exist_ok=True)
+os.makedirs(RESULTS_DIR, exist_ok=True)
 
 VIEW_HEAD = 700          # chars from the start of the doc
 VIEW_WIN = 400           # chars around the first keyword hit if it is beyond the head
@@ -72,7 +77,7 @@ for s, size in STRATUM_SIZES.items():
 
 random.shuffle(matched_sample)  # judge in random order, not stratum order
 json.dump(matched_sample,
-          open(os.path.join(EVAL_DIR, "sample_matched.json"), "w", encoding="utf-8"),
+          open(os.path.join(SAMPLES_DIR, "sample_matched.json"), "w", encoding="utf-8"),
           ensure_ascii=False, indent=1)
 print(f"matched sample: {len(matched_sample)} records "
       f"({ {s: len(v) for s, v in by_stratum.items()} } population)")
@@ -149,7 +154,7 @@ for gi, gz in enumerate(gz_files):
 unmatched_sample = pool + randoms
 random.shuffle(unmatched_sample)
 json.dump(unmatched_sample,
-          open(os.path.join(EVAL_DIR, "sample_unmatched.json"), "w", encoding="utf-8"),
+          open(os.path.join(SAMPLES_DIR, "sample_unmatched.json"), "w", encoding="utf-8"),
           ensure_ascii=False, indent=1)
 
 counts = {
@@ -162,6 +167,6 @@ counts = {
     "pool_sampled": len(pool),
     "random_sampled": len(randoms),
 }
-json.dump(counts, open(os.path.join(EVAL_DIR, "population_counts.json"), "w",
+json.dump(counts, open(os.path.join(RESULTS_DIR, "population_counts.json"), "w",
                        encoding="utf-8"), indent=2)
 print(json.dumps(counts, indent=2))

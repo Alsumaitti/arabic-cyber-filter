@@ -6,7 +6,7 @@ Reads:
   evaluation/judgments/matched_*.json   (per-record judge_label for the 300
                                           stratified matched sample)
   evaluation/judgments/unmatched_*.json  (verdicts for the recall pool + random)
-  evaluation/population_counts.json      (stratum populations + pool sizes)
+  evaluation/results/population_counts.json      (stratum populations + pool sizes)
 
 Computes:
   - Per-stratum precision (strict = cyber only; lenient = cyber+borderline),
@@ -18,11 +18,13 @@ Computes:
     rejected records, then Recall = TP / (TP + FN_est).
   - F1 from weighted precision and estimated recall.
 
-Writes evaluation/metrics.json and prints a summary.
+Writes evaluation/results/metrics.json and prints a summary.
 """
 import glob, json, math, os
 
-EVAL = os.path.dirname(os.path.abspath(__file__))
+EVAL = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))  # evaluation/
+SAMPLES_DIR = os.path.join(EVAL, "samples")
+RESULTS_DIR = os.path.join(EVAL, "results")
 MATCHED_TOTAL = 13345
 STRATUM_WEIGHTS = {"1": 9062, "2": 2209, "3-5": 1610, "6+": 464}
 
@@ -45,14 +47,14 @@ def load(pattern):
 
 
 def main():
-    counts = json.load(open(os.path.join(EVAL, "population_counts.json"), encoding="utf-8"))
+    counts = json.load(open(os.path.join(RESULTS_DIR, "population_counts.json"), encoding="utf-8"))
     matched = load("matched_*.json")
     unmatched = load("unmatched_*.json")
 
     # ----- precision on the matched sample, per stratum -----
     by_stratum = {}
     id_to_stratum = {r["rec_id"]: r["stratum"]
-                     for r in json.load(open(os.path.join(EVAL, "sample_matched.json"),
+                     for r in json.load(open(os.path.join(SAMPLES_DIR, "sample_matched.json"),
                                              encoding="utf-8"))}
     for rec in matched:
         s = id_to_stratum.get(rec["rec_id"], "?")
@@ -141,7 +143,7 @@ def main():
         "estimated_true_positives_lenient": round(est_true_positives_lenient),
         "recall": recall_block,
     }
-    json.dump(metrics, open(os.path.join(EVAL, "metrics.json"), "w", encoding="utf-8"),
+    json.dump(metrics, open(os.path.join(RESULTS_DIR, "metrics.json"), "w", encoding="utf-8"),
               ensure_ascii=False, indent=2)
     print(json.dumps(metrics, ensure_ascii=False, indent=2))
 
