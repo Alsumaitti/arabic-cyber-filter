@@ -51,10 +51,45 @@ Combining the strata with their true corpus weights (9062 / 2209 / 1610 / 464):
 
 ## Recall
 
-<!-- RECALL_PLACEHOLDER -->
-Recall is estimated by TREC-style pooling over the ~986k rejected records (see
-[`EVALUATION.md`](EVALUATION.md) § Recall). Numbers are filled in from
-[`metrics.json`](metrics.json) once the pooled unmatched sample has been judged.
+Recall was estimated by TREC-style pooling over the **986,655 rejected records**
+(see [`EVALUATION.md`](EVALUATION.md) § Recall). A deliberately broad safety-net
+regex (loose Arabic + English cyber signals *not* in the strict lexicon) flagged
+**15,535** of them as candidate misses; a random **120** of that pool and a
+random **80** from the ~971k records *outside* the pool were judged.
+
+| Sample | n judged | cyber + borderline | rate | population | est. false negatives |
+|---|---|---|---|---|---|
+| Safety-net pool | 120 | 19 | 15.8% | 15,535 | ~2,460 |
+| Outside the pool (random) | 80 | 0 | 0.0% | 971,120 | ~0 |
+| **Total est. false negatives** | | | | | **~2,460** |
+
+With ~9,070 true positives kept (lenient) and ~2,460 estimated missed:
+
+|  | Value |
+|---|---|
+| **Estimated recall (lenient)** | **≈ 0.79** |
+| **F1 (lenient precision × recall)** | **≈ 0.73** |
+
+### What the misses look like
+
+The genuine false negatives the filter missed were mostly documents that discuss
+cybersecurity in **general Arabic terms the strict lexicon doesn't contain** — a
+report on Pegasus spyware ("تجسّس إلكتروني"), Israel's Unit 8200 and the
+information-security industry, a first-person account of cracking a school's WiFi
+("اختراق الشبكة"), SEC cybersecurity-breach rules, and phone-surveillance apps.
+These are exactly the kind of records a lexicon expansion (adding the broad terms)
+or a recall-oriented second pass would recover.
+
+### Caveat on the estimate
+
+The recall point estimate rests on the random-outside-pool rate being ~0 (0 of 80
+judged). That is plausible — the safety net is wide, so genuine Arabic
+cybersecurity text almost always contains either a strict keyword or a broad-net
+term — but 0/80 has a Wilson 95% upper bound near 4.6%. If the true outside-pool
+rate were at that upper bound, recall would fall substantially. The robust,
+low-variance finding is the **within-pool miss rate of ~16%**, which is what a
+lexicon expansion should target; the single-number recall is a best estimate, not
+a tight bound.
 
 ## Most common false-positive patterns (single-hit stratum)
 

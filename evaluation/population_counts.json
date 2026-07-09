@@ -1,0 +1,21 @@
+{
+  "matched_total": 13345,
+  "strata_population": {
+    "1": 9062,
+    "2": 2209,
+    "3-5": 1610,
+    "6+": 464
+  },
+  "strata_sampled": {
+    "1": 100,
+    "2": 80,
+    "3-5": 60,
+    "6+": 60
+  },
+  "unmatched_total": 986655,
+  "unmatched_pool_size": 15535,
+  "unmatched_random_size": 971120,
+  "pool_sampled": 120,
+  "random_sampled": 80,
+  "scan_chars": 4000
+}

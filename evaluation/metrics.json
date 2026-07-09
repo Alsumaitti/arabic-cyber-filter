@@ -1,0 +1,96 @@
+{
+  "matched_sample_size": 300,
+  "corpus_size": 13345,
+  "stratum_weights": {
+    "1": 9062,
+    "2": 2209,
+    "3-5": 1610,
+    "6+": 464
+  },
+  "per_stratum": {
+    "2": {
+      "n_judged": 80,
+      "cyber": 41,
+      "borderline": 23,
+      "not_cyber": 16,
+      "precision_strict": 0.5125,
+      "precision_strict_ci95": [
+        0.4049,
+        0.6189
+      ],
+      "precision_lenient": 0.8,
+      "precision_lenient_ci95": [
+        0.6995,
+        0.873
+      ]
+    },
+    "1": {
+      "n_judged": 100,
+      "cyber": 21,
+      "borderline": 37,
+      "not_cyber": 42,
+      "precision_strict": 0.21,
+      "precision_strict_ci95": [
+        0.1417,
+        0.2998
+      ],
+      "precision_lenient": 0.58,
+      "precision_lenient_ci95": [
+        0.4821,
+        0.672
+      ]
+    },
+    "6+": {
+      "n_judged": 60,
+      "cyber": 58,
+      "borderline": 2,
+      "not_cyber": 0,
+      "precision_strict": 0.9667,
+      "precision_strict_ci95": [
+        0.8864,
+        0.9908
+      ],
+      "precision_lenient": 1.0,
+      "precision_lenient_ci95": [
+        0.9398,
+        1.0
+      ]
+    },
+    "3-5": {
+      "n_judged": 60,
+      "cyber": 45,
+      "borderline": 14,
+      "not_cyber": 1,
+      "precision_strict": 0.75,
+      "precision_strict_ci95": [
+        0.6277,
+        0.8422
+      ],
+      "precision_lenient": 0.9833,
+      "precision_lenient_ci95": [
+        0.9114,
+        0.9971
+      ]
+    }
+  },
+  "pooled_precision_strict": 0.55,
+  "pooled_precision_lenient": 0.8033,
+  "weighted_precision_strict": 0.3515,
+  "weighted_precision_lenient": 0.6797,
+  "estimated_true_positives_strict": 4691,
+  "estimated_true_positives_lenient": 9070,
+  "recall": {
+    "pool_sampled": 120,
+    "pool_cyber": 19,
+    "pool_rate": 0.1583,
+    "pool_population": 15535,
+    "random_sampled": 80,
+    "random_cyber": 0,
+    "random_rate": 0.0,
+    "random_population": 971120,
+    "estimated_false_negatives": 2460,
+    "estimated_true_positives_kept": 9070,
+    "estimated_recall_lenient": 0.7867,
+    "f1_lenient": 0.7293
+  }
+}

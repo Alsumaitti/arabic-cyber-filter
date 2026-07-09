@@ -226,6 +226,17 @@ _(Wilson 95% confidence intervals in parentheses; strata combined using their tr
 
 **What this means, and why it's actionable:** the single-hit stratum is 68% of the corpus but only ~21% of it is substantively about cybersecurity — the rest are metaphorical matches ("Trojan horse" in politics, "back door" as a literal door), boilerplate privacy-policy clauses, and spam pages with an incidental "VPN" or "firewall". At 3+ hits, lenient precision is ≥ 98%. So filtering the existing corpus on `len(keywords_found) >= 2` — which the explainable `keywords_found` column makes trivial — lifts strict precision from ~0.35 to roughly ~0.6 and lenient precision to ~0.85 while keeping essentially all the genuine content. **The evidence trail doubles as a confidence score.** Full breakdown and the recurring false-positive patterns are in [`evaluation/RESULTS.md`](evaluation/RESULTS.md).
 
+### Recall
+
+Recall was estimated by [TREC-style pooling](evaluation/EVALUATION.md#recall--how-many-cybersecurity-documents-the-filter-missed) over the 986,655 rejected records: a broad safety-net regex flagged 15,535 candidate misses, of which ~15.8% (judged) were genuinely cybersecurity — extrapolating to **~2,460 false negatives**, while a random sample of the ~971k records outside the net found none. Against ~9,070 kept true positives:
+
+| Metric (lenient) | Value |
+|---|---|
+| **Estimated recall** | **≈ 0.79** |
+| **F1** (precision × recall) | **≈ 0.73** |
+
+The misses are documents that describe cybersecurity in general Arabic the strict lexicon lacks — a report on Pegasus spyware, Israel's Unit 8200, a WiFi-cracking story, SEC breach rules — precisely what a lexicon expansion would recover. See [`evaluation/RESULTS.md`](evaluation/RESULTS.md) for the estimate's sensitivity caveat.
+
 ### Judging the whole corpus
 
 To judge all 13,345 records (not just the sample), [`scripts/llm_judge_api.py`](scripts/llm_judge_api.py) runs the same rubric through the **Claude Message Batches API** (50% of standard price, structured-output JSON schema enforced). It writes the corpus back out with the four judge columns appended, resumable per chunk. Rough cost at defaults: ~USD 80–110 for the full corpus.
