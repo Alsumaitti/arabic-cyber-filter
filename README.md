@@ -105,7 +105,7 @@ arabic-cyber-filter/
 │   └── results/                  #   metrics.json + judged_sample_*.json/.csv (records + 4 judge columns)
 ├── samples/
 │   └── sample_output.json        # 5 example records from the final corpus
-├── result/                       #  final merged corpus
+├── result/                       #  (not tracked) final merged corpus
 ├── FineWeb2/                     # (not tracked) input shards  *.jsonl.gz
 ├── output/                       # (not tracked) per-shard filtered outputs
 └── logs/                         # (not tracked) SLURM stdout/stderr logs
