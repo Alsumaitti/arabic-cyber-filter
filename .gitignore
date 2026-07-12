@@ -9,9 +9,6 @@ FineWeb2/
 # Per-shard filtered outputs produced by the SLURM array job (~365 MB)
 output/
 
-# Final merged corpus (cyber_arabic_ALL.json / .csv, ~365 MB)
-result/
-
 # SLURM job logs
 logs/
 
