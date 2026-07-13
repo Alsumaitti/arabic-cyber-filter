@@ -97,7 +97,10 @@ def load_keywords(path: str, do_strip: bool) -> list[str]:
 def build_pattern(keywords: list[str]) -> re.Pattern:
     escaped = [re.escape(kw) for kw in keywords]
     pattern = r"\b(?:" + "|".join(escaped) + r")\b"
-    return re.compile(pattern, re.UNICODE)
+    # IGNORECASE so Latin-script keywords (VPN, Firewall, ...) match all
+    # casings found in the wild (vpn, Vpn, VPN); Arabic has no case, so
+    # Arabic matching is unaffected.
+    return re.compile(pattern, re.UNICODE | re.IGNORECASE)
 
 
 def find_keywords(text: str, keywords: list[str], pattern: re.Pattern) -> list[str]:
@@ -105,7 +108,15 @@ def find_keywords(text: str, keywords: list[str], pattern: re.Pattern) -> list[s
     # findall on a non-grouped alternation returns full matches directly
     # since the whole alternation IS the single group here (no nested
     # groups inside each escaped keyword), so hits are the matched strings.
-    return sorted(set(hits), key=lambda h: keywords.index(h) if h in keywords else 0)
+    # Canonicalize case variants (vpn/Vpn/VPN) to the lexicon's spelling so
+    # they dedup to ONE keyword and never inflate the distinct-hit count.
+    canon = getattr(find_keywords, "_canon", None)
+    if canon is None or find_keywords._canon_src is not keywords:
+        canon = {kw.lower(): kw for kw in keywords}
+        find_keywords._canon = canon
+        find_keywords._canon_src = keywords
+    hits = {canon.get(h.lower(), h) for h in hits}
+    return sorted(hits, key=lambda h: keywords.index(h) if h in keywords else 0)
 
 
 def iter_records(gz_path: str):

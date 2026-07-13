@@ -43,12 +43,15 @@ Outputs
       per-keyword evidence: tier, solo_good/solo_bad, good/bad record counts
       per bucket - the audit trail behind every tier assignment.
 """
-import collections, json, os
+import collections, json, os, sys
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 EVAL = os.path.dirname(SCRIPT_DIR)
 ROOT = os.path.dirname(EVAL)
-JUDGED = os.path.join(EVAL, "results", "judged_sample_matched.json")
+# default: the 300-record judged sample; pass a path argument to build tiers
+# from a bigger judged set (e.g. evaluation/chat_judging/judged_corpus.json)
+JUDGED = sys.argv[1] if len(sys.argv) > 1 else \
+    os.path.join(EVAL, "results", "judged_sample_matched.json")
 TIERS_DIR = os.path.join(ROOT, "keywords", "tiers")
 EVIDENCE_OUT = os.path.join(EVAL, "results", "keyword_tiers_evidence.tsv")
 os.makedirs(TIERS_DIR, exist_ok=True)
