@@ -1,0 +1,40 @@
+# Tier 3 - keywords that need TWO companions
+# Strongest positive evidence is in records with exactly 3 distinct
+# keyword hits.
+# Derived from evaluation/results/judged_sample_matched.json (300 LLM-judged records)
+# by evaluation/scripts/build_keyword_tiers.py. Evidence per keyword:
+# evaluation/results/keyword_tiers_evidence.tsv
+فك التشفير
+هجمات التصيد
+برمجيات خبيثة
+التصيد الاحتيالي
+الهندسة الاجتماعية
+سرقة البيانات
+البريد العشوائي
+الهجوم الإلكتروني
+الاختراق الإلكتروني
+الملفات الخبيثة
+اختراق الحسابات
+أمن نظم المعلومات
+اكتشاف الثغرات
+الإرهاب الإلكتروني
+الامن السيبراني
+القرصنة المعلوماتية
+بيانات الاعتماد
+سد الثغرات
+طبقة المقابس الآمنة
+هجوم معلوماتي
+أمن الشبكات
+اختراق الانظمة
+اختراق مواقع
+استغلال الثغرة
+الإعلانات الخبيثة
+المواقع الخبيثة
+برمجيات ضارة
+توقيع الفيروس
+رسائل مزعجة
+فيروس الكمبيوتر
+قراصنة الانترنت
+كشف التسلل
+مصادقة متعددة العوامل
+مكافح الفيروسات

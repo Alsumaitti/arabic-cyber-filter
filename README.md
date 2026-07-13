@@ -94,7 +94,11 @@ arabic-cyber-filter/
 │   ├── filter_cyber_arabic.sh    # SLURM array job — one task per shard
 │   └── merge_cyber_outputs.sh    # SLURM merge job — run after the array finishes
 ├── keywords/
-│   └── arabic_cyber_keywords.txt # 1,209-term Arabic cybersecurity lexicon (one per line)
+│   ├── arabic_cyber_keywords.txt          # 1,209-term Arabic cybersecurity lexicon (original, unchanged)
+│   ├── missing_cybersecurity_keywords.txt # 24 recall-gap terms mined from missed records (mostly English: VPN, Firewall…)
+│   ├── all_cyber_keywords.txt             # combined 1,233-keyword lexicon (original + missing, exact-deduped)
+│   └── tiers/                             # evidence-tiered lexicon learned from the LLM judge
+│       └── tier{1..4}_keywords.txt        #   tier 1 = trustworthy alone … tier 4 = needs 4+ co-hits
 ├── evaluation/                   # LLM-as-judge verification (see evaluation/README.md)
 │   ├── README.md                 #   method overview + folder layout
 │   ├── JUDGE_PROTOCOL.md         #   the labelling rubric
@@ -227,6 +231,10 @@ _(Wilson 95% confidence intervals in parentheses; strata combined using their tr
 
 **What this means, and why it's actionable:** the single-hit stratum is 68% of the corpus but only ~21% of it is substantively about cybersecurity — the rest are metaphorical matches ("Trojan horse" in politics, "back door" as a literal door), boilerplate privacy-policy clauses, and spam pages with an incidental "VPN" or "firewall". At 3+ hits, lenient precision is ≥ 98%. So filtering the existing corpus on `len(keywords_found) >= 2` — which the explainable `keywords_found` column makes trivial — lifts strict precision from ~0.35 to roughly ~0.6 and lenient precision to ~0.85 while keeping essentially all the genuine content. **The evidence trail doubles as a confidence score.** Full breakdown and the recurring false-positive patterns are in [`evaluation/RESULTS.md`](evaluation/RESULTS.md).
 
+### Tiered keywords — not all keywords are equal
+
+The flat `--min-keywords 2` fix above throws away *every* single-hit record, including the genuinely good ones. The judge data supports something sharper: **measure each keyword's individual reliability** and tier the lexicon by how much co-occurring evidence a keyword needs before its match is trustworthy. A record judged cyber on the strength of `الأمن السيبراني` *alone* proves that keyword self-sufficient (Tier 1); a keyword only ever seen in 4+-hit cyber records has never carried a document by itself (Tier 4). Crucially, a keyword whose solo matches are *mostly false positives* is demoted regardless — `حصان طروادة` appeared solo in 5 not_cyber records (political Trojan-horse metaphors) vs 1 good, so it is **not** Tier 1 even though it "worked" once. The result: **38 / 64 / 34 / 143** keywords in tiers 1–4 ([`keywords/tiers/`](keywords/tiers)), each assignment backed by a per-keyword audit trail ([`evaluation/results/keyword_tiers_evidence.tsv`](evaluation/results/keyword_tiers_evidence.tsv)), plus 7 lexicon keywords that earned **no** tier because every judged appearance was not_cyber (e.g. `الباب الخلفي` — literal back doors). Method, demotion rule, tier-based filtering recipe, and coverage caveats: [`evaluation/README.md`](evaluation/README.md#tiered-keywords--learning-each-keywords-evidential-weight).
+
 ### Recall
 
 Recall was estimated by [TREC-style pooling](evaluation/README.md#recall--how-many-cybersecurity-documents-the-filter-missed) over the 986,655 rejected records: a broad safety-net regex flagged 15,535 candidate misses, of which ~15.8% (judged) were genuinely cybersecurity — extrapolating to **~2,460 false negatives**, while a random sample of the ~971k records outside the net found none. Against ~9,070 kept true positives:
@@ -237,6 +245,10 @@ Recall was estimated by [TREC-style pooling](evaluation/README.md#recall--how-ma
 | **F1** (precision × recall) | **≈ 0.73** |
 
 The misses are documents that describe cybersecurity in general Arabic the strict lexicon lacks — a report on Pegasus spyware, Israel's Unit 8200, a WiFi-cracking story, SEC breach rules — precisely what a lexicon expansion would recover. See [`evaluation/RESULTS.md`](evaluation/RESULTS.md) for the estimate's sensitivity caveat.
+
+### Closing the gap: mined keywords & a combined lexicon
+
+The recall miss was turned into concrete fixes. Mining the missed records for cybersecurity terms absent from the lexicon surfaced **24 verified-new keywords** ([`keywords/missing_cybersecurity_keywords.txt`](keywords/missing_cybersecurity_keywords.txt)) — and the dominant gap is **Latin/English terms** the Arabic-only glossary never listed (`VPN` appears in **605** missed records, then `Antivirus`, `Proxy`, `Hacker`, `Firewall`, `Malware`, …). The reason is structural, not an oversight: cybersecurity vocabulary is coined in English and enters Arabic writing **untranslated**, so Arabic security articles are code-switched and frequently name a concept only by its English token — which matched none of the 1,209 Arabic entries and was silently dropped. The full explanation (why the terms recur, why they were missing, and what their absence cost) and the mining pipeline are in [`evaluation/README.md`](evaluation/README.md#keyword-gap-mining-turning-the-recall-miss-into-lexicon-fixes). A ready-to-use merged lexicon of **1,233** keywords (original 1,209 + the 24 new, exact-deduped) is in [`keywords/all_cyber_keywords.txt`](keywords/all_cyber_keywords.txt); the original lexicon file is left unchanged.
 
 ### Judging the whole corpus
 
