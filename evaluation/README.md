@@ -28,7 +28,10 @@ evaluation/
 ├── scripts/                 ← the pipeline
 │   ├── make_samples.py          build the matched + unmatched samples
 │   ├── make_unmatched_sample.py standalone pooled-negative (recall) sampler
-│   └── compute_metrics.py       verdicts → precision / recall / F1 (Wilson CIs)
+│   ├── compute_metrics.py       verdicts → precision / recall / F1 (Wilson CIs)
+│   ├── collect_pool_texts.py    gather all missed-record text for keyword mining
+│   ├── mine_missing_keywords.py find cyber terms absent from the lexicon
+│   └── verify_no_overlap.py     prove a keyword file is disjoint from the lexicon
 ├── samples/                 ← judge-view inputs shown to the LLM
 │   ├── sample_matched.json
 │   └── sample_unmatched.json
@@ -38,9 +41,35 @@ evaluation/
 └── results/                 ← computed outputs
     ├── metrics.json             precision / recall / F1
     ├── population_counts.json   stratum & pool sizes
+    ├── candidate_terms.tsv      ranked keyword-gap candidates (df, surface, normalized)
     ├── judged_sample_matched.json / .csv    original columns + 4 judge columns
     └── judged_sample_unmatched.json / .csv
 ```
+
+## Keyword-gap mining (turning the recall miss into lexicon fixes)
+
+The recall analysis found the filter misses cyber documents written in vocabulary
+the lexicon lacks. To turn that into concrete additions, three scripts mine the
+**missed records** for cybersecurity terms that are *not* already in the lexicon:
+
+```bash
+# 1. Collect every rejected record that carries a broad cyber signal (~17k docs)
+python evaluation/scripts/collect_pool_texts.py       # → scratch/pool_texts.jsonl
+
+# 2. Extract cyber n-grams, dedupe against the lexicon (normalized), rank by df
+python evaluation/scripts/mine_missing_keywords.py    # → results/candidate_terms.tsv
+
+# 3. Hand-curate the ranked candidates into keywords/missing_cybersecurity_keywords.txt,
+#    then prove it shares nothing with the existing lexicon:
+python evaluation/scripts/verify_no_overlap.py keywords/missing_cybersecurity_keywords.txt
+```
+
+Dedup and overlap-checking normalize Arabic (strip tashkeel, unify alef-hamza and
+alef-maqsura, strip the definite article `ال` per word) so a term is only counted
+as "new" when **no** form of it already exists. The curated result —
+[`keywords/missing_cybersecurity_keywords.txt`](../keywords/missing_cybersecurity_keywords.txt)
+— found the biggest gap is **Latin/English terms** (`VPN`, `Antivirus`, `Firewall`,
+`Malware`, `Hacker`, …) that the Arabic-only lexicon never had.
 
 ## Why sampling instead of judging all 13,345
 

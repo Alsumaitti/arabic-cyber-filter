@@ -1,0 +1,71 @@
+# ==========================================================================
+# Missing Arabic cybersecurity keywords — candidates for lexicon expansion
+# ==========================================================================
+# Mined from the 17,216 records that the strict keyword filter REJECTED but that
+# still carry a broad cybersecurity signal (the "recall pool"). Every ACTIVE
+# entry below is genuinely cybersecurity-related AND absent from
+# keywords/arabic_cyber_keywords.txt — verified disjoint by
+# evaluation/scripts/verify_no_overlap.py (exact + normalized comparison:
+# tashkeel / alef-hamza / ya / definite-article insensitive).
+#
+# Format matches the main lexicon exactly: one keyword or phrase per line, no
+# inline comments; lines starting with '#' are comments. Per-term pool
+# frequencies are in evaluation/results/candidate_terms.tsv.
+#
+# --------------------------------------------------------------------------
+# Group 1 — Latin / transliterated terms (the Arabic lexicon has NONE of these)
+# --------------------------------------------------------------------------
+# The single biggest recall gap. These English terms appear literally, unaltered,
+# in Arabic tech/security writing and are low-risk for precision. Ordered by pool
+# frequency (VPN alone appears in 605 of the missed records).
+# NOTE: SSL, DDoS and TLS are intentionally excluded — they already exist inside
+# lexicon phrases such as "بروتوكول SSL" and "هجمات DDoS".
+VPN
+Antivirus
+Proxy
+Hacker
+Firewall
+Hacking
+OpenVPN
+Malware
+Encryption
+Spyware
+Exploit
+Phishing
+Ransomware
+Adware
+Trojan
+Cybersecurity
+Keylogger
+Backdoor
+Botnet
+
+# --------------------------------------------------------------------------
+# Group 2 — Unambiguous Arabic cyber terms/phrases missing from the lexicon
+# --------------------------------------------------------------------------
+# سبام  = "spam" (lexicon only has البريد المزعج)
+# اختراق أمني / اختراقات أمنية = "security breach(es)"
+# الحماية من الفيروسات = "protection from viruses" (variant of مكافحة الفيروسات)
+# هكر  = the act of hacking (lexicon only has هاكر/هاكرز = hacker)
+سبام
+اختراق أمني
+اختراقات أمنية
+الحماية من الفيروسات
+هكر
+
+# --------------------------------------------------------------------------
+# Group 3 — Cyber ROOTS found in the pool but AMBIGUOUS (precision risk)
+# --------------------------------------------------------------------------
+# These are real cybersecurity words, but each ALSO has a common non-cyber sense,
+# which is exactly why they were left out of the original lexicon (which favors
+# specific multi-word phrases). The evaluation showed single-keyword matches are
+# only ~21% precise. They are listed here (commented OUT, so they are NOT active
+# keywords) for completeness — enable them only if you accept the false positives
+# or pair them with a second required keyword.
+#   اختراق  — breach / breakthrough / market-penetration / physical incursion
+#   قرصنة   — hacking, but also maritime & media piracy
+#   تشفير   — encryption (fairly safe, but generic)
+#   تجسس    — spying (digital or physical)
+#   ثغرة    — vulnerability, but also a plain "gap"
+#   فدية    — ransom (ransomware, but also a literal ransom)
+#   مصادقة  — authentication (fairly safe, but generic)
