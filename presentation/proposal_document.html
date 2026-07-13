@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Proposal — Full-Corpus LLM Evaluation for a High-Precision Tiered Filtering System</title>
+<style>
+  :root {
+    --navy: #12275e;
+    --blue: #2286c3;
+    --muted: #5a6a85;
+    --line: #d9e2ee;
+    --good: #1a7f4e;
+    --bad: #b3392f;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  @page { size: A4; margin: 25mm 22mm; }
+
+  html { background: #e9edf2; }
+  body {
+    font-family: Georgia, "Times New Roman", serif;
+    color: #1a2333;
+    font-size: 11.5pt;
+    line-height: 1.62;
+  }
+  .page {
+    max-width: 176mm;              /* A4 width minus 2 × 22mm */
+    margin: 0 auto;
+    background: #fff;
+    padding: 25mm 22mm;            /* screen-view margins mirror print margins */
+    box-shadow: 0 2px 14px rgba(18,39,94,.12);
+  }
+  @media print {
+    html { background: #fff; }
+    .page { max-width: none; margin: 0; padding: 0; box-shadow: none; }
+    a { color: inherit; text-decoration: none; }
+    h2 { page-break-after: avoid; }
+    table, .callout { page-break-inside: avoid; }
+  }
+
+  /* ---------- header ---------- */
+  .letterhead {
+    display: flex; justify-content: space-between; align-items: center;
+    border-bottom: 3px solid var(--navy); padding-bottom: 14px; margin-bottom: 8px;
+  }
+  .letterhead img { height: 58px; }
+  .letterhead .fallback {
+    display: none; font-family: "Segoe UI", Arial, sans-serif; text-align: right; line-height: 1.4;
+  }
+  .letterhead .fallback b { color: var(--blue); font-size: 15pt; letter-spacing: 1.5px; }
+  .letterhead .fallback span { display: block; color: var(--navy); font-size: 8pt; }
+  .doc-type {
+    font-family: "Segoe UI", Arial, sans-serif; font-size: 9pt; font-weight: 700;
+    letter-spacing: 2.5px; color: var(--blue); text-transform: uppercase;
+  }
+
+  h1 {
+    font-size: 19pt; color: var(--navy); line-height: 1.35;
+    margin: 22px 0 6px; font-weight: 700;
+  }
+  .meta {
+    font-family: "Segoe UI", Arial, sans-serif; font-size: 9.5pt; color: var(--muted);
+    border-bottom: 1px solid var(--line); padding-bottom: 16px; margin-bottom: 8px;
+  }
+  .meta b { color: #1a2333; }
+  .meta .ask-line { color: var(--navy); font-weight: 700; font-size: 10.5pt; margin-top: 4px; display: block; }
+
+  h2 {
+    font-family: "Segoe UI", Arial, sans-serif; font-size: 12.5pt; color: var(--navy);
+    margin: 26px 0 10px; padding-bottom: 5px; border-bottom: 1px solid var(--line);
+  }
+  h2 .n { color: var(--blue); margin-right: 6px; }
+  h3 { font-family: "Segoe UI", Arial, sans-serif; font-size: 10.5pt; color: var(--navy); margin: 16px 0 6px; }
+  p { margin-bottom: 10px; text-align: justify; }
+  ul, ol { margin: 0 0 10px 22px; }
+  li { margin-bottom: 5px; text-align: justify; }
+  b { color: var(--navy); }
+  .ar { direction: rtl; unicode-bidi: embed; }
+  code {
+    font-family: Consolas, monospace; font-size: 9.5pt;
+    background: #f1f5fa; padding: 1px 5px; border-radius: 3px;
+  }
+
+  table {
+    border-collapse: collapse; width: 100%; margin: 12px 0 16px;
+    font-family: "Segoe UI", Arial, sans-serif; font-size: 9.5pt;
+  }
+  th { background: var(--navy); color: #fff; padding: 7px 10px; text-align: left; font-weight: 600; }
+  td { padding: 6px 10px; border-bottom: 1px solid var(--line); }
+  td.num { text-align: center; font-weight: 700; color: var(--navy); }
+  tr.hl td { background: #eaf6ec; font-weight: 700; }
+  .ok { color: var(--good); font-weight: 700; }
+  .no { color: var(--bad); font-weight: 700; }
+
+  .callout {
+    background: #eef5fb; border-left: 4px solid var(--blue);
+    padding: 12px 16px; margin: 14px 0; border-radius: 0 6px 6px 0;
+  }
+  .callout.ask {
+    background: var(--navy); border-left-color: var(--blue); color: #fff;
+    font-family: "Segoe UI", Arial, sans-serif; font-size: 11pt; text-align: center; padding: 14px;
+  }
+  .callout.ask b { color: #8ed0ee; font-size: 14pt; }
+
+  .sig {
+    margin-top: 34px; padding-top: 14px; border-top: 1px solid var(--line);
+    font-family: "Segoe UI", Arial, sans-serif; font-size: 9.5pt; color: var(--muted);
+    display: flex; justify-content: space-between;
+  }
+</style>
+</head>
+<body>
+<div class="page">
+
+  <div class="letterhead">
+    <div class="doc-type">Research&nbsp;Proposal</div>
+    <img src="qcri_hbku_logo.png" alt="QCRI — Hamad Bin Khalifa University"
+         onerror="this.style.display='none'; this.nextElementSibling.style.display='block'">
+    <div class="fallback"><b>QCRI</b><span>Qatar Computing Research Institute</span><span>Hamad Bin Khalifa University</span></div>
+  </div>
+
+  <h1>Full-Corpus LLM Evaluation to Build a High-Precision Tiered Filtering System for Arabic Cybersecurity Text</h1>
+  <div class="meta">
+    <b>Submitted by:</b> Osamah Alsumaitti &nbsp;·&nbsp;
+    <b>Project:</b> Arabic cybersecurity corpus filter for FineWeb2
+    <span class="ask-line">Request: API budget for full-corpus LLM judging — maximum USD 150</span>
+  </div>
+
+  <h2><span class="n">1.</span> Executive Summary</h2>
+  <p>We built a lexicon-based filter that extracted <b>13,345 cybersecurity documents</b> from one million Arabic web records, then measured its quality scientifically with an LLM-as-Judge evaluation. The measurement exposed two specific weaknesses, and for each we have already developed a working, methodical fix:</p>
+  <ol>
+    <li><b>A recall gap:</b> the Arabic lexicon was missing the English terms that pervade Arabic technical writing (VPN, Firewall, …) — we <b>mined 24 missing keywords</b> from the missed records themselves and built a unified lexicon of <b>1,233 keywords</b>.</li>
+    <li><b>A precision gap:</b> the filter trusts all keywords equally — we <b>designed a keyword <i>tier</i> system</b> that learns each keyword's individual reliability from the LLM verdicts.</li>
+  </ol>
+  <p>Both fixes are currently built on a 300-record judged sample. <b>The single remaining step</b> to turn them into a production-grade filtering system is judging the corpus in full, at a cost of <b>~USD&nbsp;85–120</b> (via the Batches API at a 50% discount). That budget is the subject of this proposal.</p>
+
+  <h2><span class="n">2.</span> Current Status: How We Got Here</h2>
+  <h3>Stage 1 — Building the filter (complete)</h3>
+  <ul>
+    <li>Filtered <b>1,000,000 Arabic records</b> from FineWeb2 across 100 parallel SLURM tasks.</li>
+    <li>Lexicon of <b>1,209 terms</b> from the Arabic Cybersecurity Glossary (the output of an earlier stage of this project).</li>
+    <li>Whole-word matching with a full evidence trail: every kept record carries the exact keywords that matched it.</li>
+    <li><b>Output:</b> a corpus of 13,345 documents, every classification human-verifiable.</li>
+  </ul>
+  <h3>Stage 2 — Scientific measurement (complete)</h3>
+  <p>We judged a stratified sample (300 kept + 200 rejected records via TREC-style pooling) with an LLM that reads each full document and returns a structured verdict (cyber / borderline / not_cyber + justification):</p>
+  <table>
+    <tr><th>Metric</th><th>Value</th></tr>
+    <tr><td>Strict precision (corpus-weighted)</td><td class="num">~0.35</td></tr>
+    <tr><td>Lenient precision (cyber + borderline)</td><td class="num">~0.68</td></tr>
+    <tr><td>Estimated recall</td><td class="num">~0.79</td></tr>
+    <tr><td>F1</td><td class="num">~0.73</td></tr>
+    <tr><td>Estimated missed documents (false negatives)</td><td class="num">~2,460</td></tr>
+  </table>
+  <p><b>The pivotal finding:</b> precision is determined almost entirely by how many distinct keywords a record matched:</p>
+  <table>
+    <tr><th>Distinct keyword hits</th><th>Corpus share</th><th>Lenient precision</th></tr>
+    <tr><td>1</td><td class="num">67.9%</td><td class="num no">0.58</td></tr>
+    <tr><td>2</td><td class="num">16.6%</td><td class="num">0.80</td></tr>
+    <tr class="hl"><td>3–5</td><td class="num">12.1%</td><td class="num ok">0.98</td></tr>
+    <tr class="hl"><td>6+</td><td class="num">3.5%</td><td class="num ok">1.00</td></tr>
+  </table>
+
+  <h2><span class="n">3.</span> Idea 1: Mining the Missing Keywords (complete)</h2>
+  <p>Instead of guessing what the lexicon lacks, <b>we mined the very records the filter missed</b> (17,216 rejected records carrying a broad cybersecurity signal): extract cybersecurity n-grams, deduplicate against the lexicon under proper Arabic normalization, rank by document frequency, then hand-curate.</p>
+  <p><b>Result: 24 verified-new keywords</b>, with a structural discovery: <b>the single biggest gap is English terms</b>. Cybersecurity vocabulary is coined in English and enters Arabic writing untranslated — an Arabic author writes “VPN”, not <span class="ar">الشبكة الافتراضية الخاصة</span>. The original lexicon was built as an <i>Arabic</i> terminology list, so Latin-script tokens fell outside its scope — a scope gap, not a conceptual one.</p>
+  <div class="callout"><b>Measured impact:</b> the 24 keywords alone recover <b>916 additional cybersecurity documents</b> the filter was rejecting (VPN by itself appears in 604 of them). Ready deliverable: a unified lexicon of <b>1,233 keywords</b>, machine-verified free of duplicates.</div>
+
+  <h2><span class="n">4.</span> Idea 2: The Tiered Keyword System (working prototype)</h2>
+  <p><b>The problem:</b> the current filter trusts every keyword equally. One match on <span class="ar">الأمن السيبراني</span> (cybersecurity) almost certainly means a cyber document; one match on <span class="ar">حصان طروادة</span> (Trojan horse) is usually a political metaphor. The naive fix (require ≥ 2 keywords) throws away <i>all</i> single-hit records — the good ones along with the bad.</p>
+  <p><b>The idea:</b> crossing the LLM verdict with each record's keyword-hit count lets us <b>measure every keyword's individual reliability</b> and split the lexicon into tiers by how much “company” a keyword needs before its match can be trusted:</p>
+  <table>
+    <tr><th>Tier</th><th>Meaning</th><th>Assignment rule</th><th>Count</th></tr>
+    <tr class="hl"><td><b>1</b></td><td>Self-sufficient — one hit is enough</td><td>appeared <b>alone</b> in a record judged cyber, and its solo records are majority-correct</td><td class="num">38</td></tr>
+    <tr><td><b>2</b></td><td>Needs one companion</td><td>strongest positive evidence in 2-keyword records</td><td class="num">64</td></tr>
+    <tr><td><b>3</b></td><td>Needs two companions</td><td>strongest positive evidence in 3-keyword records</td><td class="num">34</td></tr>
+    <tr><td><b>4</b></td><td>Needs heavy company</td><td>only ever seen correct alongside 4+ keywords</td><td class="num">143</td></tr>
+  </table>
+  <p><b>The demotion rule (the heart of the system):</b> a keyword that appears alone in one correctly-judged record does <i>not</i> automatically reach Tier 1 — the majority of its solo records must be correct. <span class="ar">حصان طروادة</span> appeared solo in 1 cyber record versus <b>5 metaphorical ones</b>, so it was demoted. The system also exposed <b>7 keywords that never produced a single correct match</b> (most notably <span class="ar">الباب الخلفي</span> — literal back doors — responsible for 312 corpus records).</p>
+  <div class="callout"><b>How it improves filtering:</b> a tiered acceptance rule — keep a record iff it matches ≥ 1 Tier-1 keyword, or ≥ 2 of Tier ≤ 2, or ≥ 3 of Tier ≤ 3, or ≥ 4 of any tier. This keeps the genuinely good single-hit records while suppressing metaphorical noise — a precision lift <b>without</b> sacrificing recall.</div>
+
+  <h2><span class="n">5.</span> The Gap: A Sample Is Not Enough for Production</h2>
+  <ul>
+    <li>Only <b>286 of the 1,209</b> keywords appeared in the judged sample at all — <b>923 keywords have no evidence</b> and cannot be assigned a tier.</li>
+    <li>Some Tier-1 assignments rest on one or two solo records — statistically fragile.</li>
+    <li>The 24 newly mined keywords (VPN and friends) have not entered any evaluation yet.</li>
+  </ul>
+  <p><b>The fix:</b> judge the corpus <b>in full</b>. The infrastructure is already built and tested (<code>llm_judge_api.py</code>): the same measured judging protocol, run through the Claude Message Batches API (50% discount), schema-enforced structured output, resumable per chunk. <b>The only missing ingredient is API credit.</b></p>
+
+  <h2><span class="n">6.</span> Options and Cost</h2>
+  <table>
+    <tr><th></th><th>Option A — current corpus</th><th>Option B — expanded corpus (recommended)</th></tr>
+    <tr><td><b>Lexicon</b></td><td>old: 1,209 keywords</td><td><b>new: 1,233 keywords</b></td></tr>
+    <tr><td><b>Corpus judged</b></td><td class="num">13,345 records</td><td class="num"><b>~14,260 records</b></td></tr>
+    <tr><td><b>Re-filtering</b></td><td>not needed</td><td>minutes on SLURM — free</td></tr>
+    <tr><td><b>24 new keywords evaluated</b></td><td class="no" style="text-align:center">✗</td><td class="ok" style="text-align:center">✓ enter the tier system</td></tr>
+    <tr class="hl"><td><b>Estimated cost</b></td><td class="num">USD 80–110</td><td class="num"><b>USD 85–120</b></td></tr>
+  </table>
+  <p><b>Recommendation: Option B.</b> For a marginal cost difference (~USD 10) the expanded lexicon is evaluated in full — including the newly mined English terms — so everything enters one consistent tier system.</p>
+  <div class="callout ask">Requested amount: <b>USD 150</b> maximum &nbsp;·&nbsp; upper estimate + ~25% safety margin; any surplus goes unspent<br>
+  <span style="font-size:9.5pt; opacity:.85;">Time: 1–3 hours end to end, mostly passive batch-processing wait — near-zero manual effort</span></div>
+
+  <h2><span class="n">7.</span> Expected Deliverables</h2>
+  <ol>
+    <li><b>A fully judged corpus:</b> ~14,260 records, each carrying an LLM verdict + justification + summary — a reusable research asset (classifier training, fine-tuning, follow-up studies).</li>
+    <li><b>A complete tier system:</b> every keyword observed in the corpus assigned a tier backed by thousands of verdicts instead of hundreds — rebuilt in seconds at no extra cost.</li>
+    <li><b>A second-generation filter:</b> the tiered acceptance rule applied, with expected precision jumping from ~0.68 to <b>~0.85+</b> (lenient) while preserving recall — measured, not guessed.</li>
+    <li><b>A measured deletion list:</b> keywords proven to be a net liability to the lexicon across the whole corpus.</li>
+  </ol>
+
+  <h2><span class="n">8.</span> Conclusion</h2>
+  <p>The entire research infrastructure is in place and tested: the filter, the judging protocol, an expanded <b>1,233-keyword</b> lexicon, and a working prototype of the tier system. What remains is one small budget item — <b>maximum USD 150</b> — to turn the 300-record sample into full evidence over ~14,260 records, completing an Arabic cybersecurity filtering system whose precision is measured and whose every decision is explainable.</p>
+
+  <div class="sig">
+    <span>Osamah Alsumaitti — Arabic cybersecurity corpus filter (FineWeb2)</span>
+    <span>github.com/Alsumaitti/arabic-cyber-filter</span>
+  </div>
+
+</div>
+</body>
+</html>
