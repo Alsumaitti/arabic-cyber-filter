@@ -1,0 +1,32 @@
+{
+  "input": "result\\cyber_arabic_v2_ALL.json",
+  "corpus_records": 14653,
+  "mode": "full",
+  "caps": null,
+  "chunk_size": 25,
+  "text_chars": 1300,
+  "selected_records": 14653,
+  "n_chunks": 587,
+  "buckets": {
+    "1": {
+      "total": 9807,
+      "selected": 9807,
+      "keywords": 526
+    },
+    "2": {
+      "total": 2352,
+      "selected": 2352,
+      "keywords": 448
+    },
+    "3": {
+      "total": 1040,
+      "selected": 1040,
+      "keywords": 373
+    },
+    "4": {
+      "total": 1454,
+      "selected": 1454,
+      "keywords": 544
+    }
+  }
+}
