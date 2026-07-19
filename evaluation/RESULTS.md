@@ -13,6 +13,11 @@ sections (precision by stratum, recall, false-positive patterns) are kept becaus
 they still carry the recall estimate and the qualitative failure analysis, which
 the census — which only covers *kept* records — does not replace.
 
+How the census was run — chunking, model, the ~5-hour-limit-driven resumable
+design, the multi-session timeline (~20 sessions / ~14 h active over 5 days), and
+the token/cost accounting — is documented in
+[`chat_judging/CAMPAIGN.md`](chat_judging/CAMPAIGN.md).
+
 ## Headline
 
 The keyword filter has **high recall but modest precision**, and its precision is
