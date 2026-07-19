@@ -9,7 +9,7 @@
 
 This project filters a 1,000,000-record sample of Arabic web text from [FineWeb2](https://huggingface.co/datasets/HuggingFaceFW/fineweb-2) down to a **13,345-record domain-specific cybersecurity corpus**, using a curated lexicon of **1,209 Arabic cybersecurity keywords and phrases**. Every record kept in the output carries the exact list of keywords that matched it — so the classification of every single record is human-verifiable, not a black box.
 
-A second **LLM-as-judge evaluation layer** then reads the documents and measures how good the keyword filter actually is: precision, recall, and exactly where it fails. See [Evaluation](#evaluation-llm-as-judge) below and [`evaluation/`](evaluation).
+A second **LLM-as-judge evaluation layer** then reads the documents and measures how good the keyword filter actually is: precision, recall, and exactly where it fails — first on a stratified sample, then as a **full-corpus census** in which every record of the expanded ("v2") corpus was individually judged. See [Evaluation](#evaluation-llm-as-judge) below and [`evaluation/`](evaluation).
 
 The resulting corpus is intended as a foundation for training and evaluating Arabic language models in the cybersecurity domain.
 
@@ -106,7 +106,8 @@ arabic-cyber-filter/
 │   ├── scripts/                  #   make_samples.py, make_unmatched_sample.py, compute_metrics.py
 │   ├── samples/                  #   judge-view inputs shown to the LLM
 │   ├── judgments/                #   raw per-record verdicts (matched_*.json, unmatched_*.json)
-│   └── results/                  #   metrics.json + judged_sample_*.json/.csv (records + 4 judge columns)
+│   ├── chat_judging/             #   full-corpus census: 587 per-chunk verdicts + merged judged_corpus.json (not tracked, ~202 MB)
+│   └── results/                  #   metrics.json, judged_sample_*.json/.csv, keyword_tiers_evidence.tsv (per-keyword audit trail)
 ├── samples/
 │   └── sample_output.json        # 5 example records from the final corpus
 ├── result/                       #  (not tracked) final merged corpus
@@ -213,9 +214,30 @@ Records with many distinct hits are very likely dedicated cybersecurity articles
 
 The keyword filter answers a mechanical question ("does this text contain a cybersecurity term?"), which is not the same as the question we care about ("is this document *about* cybersecurity?"). To measure the gap, a second layer has an LLM (Claude) **read** each document and return a structured verdict — `cyber` / `borderline` / `not_cyber`, a confidence, a one-sentence English justification citing the evidence, and a one-sentence topic summary. This turns the filter from "trust the keywords" into a *measured* classifier with precision and recall.
 
-Everything lives in [`evaluation/`](evaluation): the labelling rubric ([`JUDGE_PROTOCOL.md`](evaluation/JUDGE_PROTOCOL.md)), the sampling and metric scripts, the raw per-record verdicts, and the written interpretation ([`RESULTS.md`](evaluation/RESULTS.md)). A stratified sample of **300** matched records was judged for precision; the rejected records were sampled by [TREC-style pooling](evaluation/README.md#recall--how-many-cybersecurity-documents-the-filter-missed) for recall.
+Everything lives in [`evaluation/`](evaluation): the labelling rubric ([`JUDGE_PROTOCOL.md`](evaluation/JUDGE_PROTOCOL.md)), the sampling and metric scripts, the raw per-record verdicts, and the written interpretation ([`RESULTS.md`](evaluation/RESULTS.md)). Evaluation happened in two rounds: first a stratified **sample** of 300 matched records (with a [TREC-style pooled](evaluation/README.md#recall--how-many-cybersecurity-documents-the-filter-missed) recall estimate), and then a full-corpus **census** — every record judged. **The census below is the authoritative reference; the sample estimates that follow it are kept for the recall/lexicon-gap analysis.**
 
-### Precision by keyword-hit count
+### Full-corpus census — every v2 record judged (authoritative)
+
+The sample estimates were later superseded by a **complete census**. After the lexicon was expanded to 1,233 keywords and the corpus re-filtered (**"v2", 14,653 records**), *every* record was read and labelled by the LLM judge in a resumable, multi-session campaign — all 587 chunks, 14,653/14,653 records. Because this is the whole population, not a 300-record draw, the proportions below are **measured exactly** — no confidence intervals. The merged verdicts (each record + its four judge columns) are in [`evaluation/chat_judging/judged_corpus.json`](evaluation/chat_judging/judged_corpus.json).
+
+| Label | Records | Share |
+|---|---|---|
+| `cyber` | 3,131 | 21.4% |
+| `borderline` | 2,550 | 17.4% |
+| `not_cyber` | 8,972 | 61.2% |
+| **Total** | **14,653** | 100% |
+
+| Distinct keyword hits | Records | Share | Strict precision (`cyber`) | Lenient (`cyber`+`borderline`) |
+|---|---|---|---|---|
+| 1 | 9,807 | 66.9% | **0.116** | **0.270** |
+| 2 | 2,352 | 16.1% | **0.312** | **0.570** |
+| 3–5 | 1,887 | 12.9% | **0.464** | **0.645** |
+| 6+ | 607 | 4.1% | **0.631** | **0.778** |
+| **Whole corpus** | **14,653** | 100% | **0.214** | **0.388** |
+
+The census confirms the sample's central finding at full resolution — precision rises monotonically with keyword-hit count — but at a **lower absolute level than the v1 sample** (whole-corpus strict 0.21 vs the v1 sample's ~0.35). That is **by design, not regression**: v2 added the recall-driven Latin/English terms (`VPN`, `Firewall`, `Proxy`, `Antivirus` …), which are the corpus's biggest false-positive magnets — they pull in consumer-VPN/antivirus product pages, privacy-policy boilerplate, and auto-generated adware "removal" pages. The census prices that precision-for-recall trade **exactly, per keyword**, which is precisely what the rebuilt tiers (below) act on.
+
+### Precision by keyword-hit count (v1 stratified sample, 300 records)
 
 The single most important finding: **precision is driven almost entirely by how many distinct keywords a record hit.** A record matched by one incidental keyword is a weak signal; three or more is a strong one.
 
@@ -233,7 +255,7 @@ _(Wilson 95% confidence intervals in parentheses; strata combined using their tr
 
 ### Tiered keywords — not all keywords are equal
 
-The flat `--min-keywords 2` fix above throws away *every* single-hit record, including the genuinely good ones. The judge data supports something sharper: **measure each keyword's individual reliability** and tier the lexicon by how much co-occurring evidence a keyword needs before its match is trustworthy. A record judged cyber on the strength of `الأمن السيبراني` *alone* proves that keyword self-sufficient (Tier 1); a keyword only ever seen in 4+-hit cyber records has never carried a document by itself (Tier 4). Crucially, a keyword whose solo matches are *mostly false positives* is demoted regardless — `حصان طروادة` appeared solo in 5 not_cyber records (political Trojan-horse metaphors) vs 1 good, so it is **not** Tier 1 even though it "worked" once. The result: **38 / 64 / 34 / 143** keywords in tiers 1–4 ([`keywords/tiers/`](keywords/tiers)), each assignment backed by a per-keyword audit trail ([`evaluation/results/keyword_tiers_evidence.tsv`](evaluation/results/keyword_tiers_evidence.tsv)), plus 7 lexicon keywords that earned **no** tier because every judged appearance was not_cyber (e.g. `الباب الخلفي` — literal back doors). Method, demotion rule, tier-based filtering recipe, and coverage caveats: [`evaluation/README.md`](evaluation/README.md#tiered-keywords--learning-each-keywords-evidential-weight).
+The flat `--min-keywords 2` fix above throws away *every* single-hit record, including the genuinely good ones. The judge data supports something sharper: **measure each keyword's individual reliability** and tier the lexicon by how much co-occurring evidence a keyword needs before its match is trustworthy. A record judged cyber on the strength of `الأمن السيبراني` *alone* proves that keyword self-sufficient (Tier 1); a keyword only ever seen in 4+-hit cyber records has never carried a document by itself (Tier 4). Crucially, a keyword whose solo matches are *mostly false positives* is demoted regardless — across the full census `VPN` carried **167** records to a `cyber`/`borderline` verdict on its own but sank **414** into `not_cyber` (consumer-VPN product pages), so despite hundreds of solo "wins" it is **not** Tier 1; `الأبواب الخلفية` (backdoors, plural) went 3 good vs 71 not_cyber. In all, **213** keywords were demoted out of Tier 1 this way. Rebuilt on the full census (**714** keywords with at least one judged appearance), the result is **136 / 295 / 57 / 152** keywords in tiers 1–4 ([`keywords/tiers/`](keywords/tiers)), each assignment backed by a per-keyword audit trail ([`evaluation/results/keyword_tiers_evidence.tsv`](evaluation/results/keyword_tiers_evidence.tsv)), plus **74** keywords that earned **no** tier because every judged appearance was not_cyber (e.g. `تدقيق أمني` / `حاجز الحماية` — literal "security audit" / "protective barrier" false positives). Method, demotion rule, tier-based filtering recipe, and coverage caveats: [`evaluation/README.md`](evaluation/README.md#tiered-keywords--learning-each-keywords-evidential-weight).
 
 ### Recall
 
@@ -252,7 +274,7 @@ The recall miss was turned into concrete fixes. Mining the missed records for cy
 
 ### Judging the whole corpus
 
-To judge all 13,345 records (not just the sample), [`scripts/llm_judge_api.py`](scripts/llm_judge_api.py) runs the same rubric through the **Claude Message Batches API** (50% of standard price, structured-output JSON schema enforced). It writes the corpus back out with the four judge columns appended, resumable per chunk. Rough cost at defaults: ~USD 80–110 for the full corpus.
+The whole corpus **was** judged this way — that is the [full-corpus census](#full-corpus-census--every-v2-record-judged-authoritative) above (all 14,653 v2 records), produced by an in-chat, resumable multi-session campaign and merged into [`evaluation/chat_judging/judged_corpus.json`](evaluation/chat_judging/judged_corpus.json). To reproduce it non-interactively (or judge a fresh corpus), [`scripts/llm_judge_api.py`](scripts/llm_judge_api.py) runs the same rubric through the **Claude Message Batches API** (50% of standard price, structured-output JSON schema enforced), writing the corpus back out with the four judge columns appended, resumable per chunk. Rough cost at defaults: ~USD 80–110 for the full corpus.
 
 ```bash
 export ANTHROPIC_API_KEY=sk-ant-...        # or: ant auth login
