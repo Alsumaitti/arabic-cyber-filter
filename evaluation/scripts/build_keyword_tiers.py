@@ -117,6 +117,7 @@ def main():
     def sort_key(kw):
         return (-good[kw][1], -sum(good[kw].values()), kw)
 
+    src_rel = os.path.relpath(JUDGED, ROOT).replace(os.sep, "/")
     for t in (1, 2, 3, 4):
         kws = sorted(per_tier[t], key=sort_key)
         path = os.path.join(TIERS_DIR, f"tier{t}_keywords.txt")
@@ -124,8 +125,8 @@ def main():
         with open(path, "w", encoding="utf-8", newline="\n") as f:
             f.write(f"# {title}\n")
             f.write(f"# {body}\n")
-            f.write("# Derived from evaluation/results/judged_sample_matched.json "
-                    "(300 LLM-judged records)\n")
+            f.write(f"# Derived from {src_rel} "
+                    f"({len(recs):,} LLM-judged records)\n")
             f.write("# by evaluation/scripts/build_keyword_tiers.py. Evidence per keyword:\n")
             f.write("# evaluation/results/keyword_tiers_evidence.tsv\n")
             for kw in kws:

@@ -2,7 +2,7 @@
 # One hit of any keyword below, ALONE, was judged cyber/borderline by
 # the LLM in the evaluation sample (and its solo record was NOT usually
 # a false positive: solo_good > solo_bad). A single match is trustworthy.
-# Derived from evaluation/results/judged_sample_matched.json (300 LLM-judged records)
+# Derived from evaluation/chat_judging/judged_corpus.json (14,653 LLM-judged records)
 # by evaluation/scripts/build_keyword_tiers.py. Evidence per keyword:
 # evaluation/results/keyword_tiers_evidence.tsv
 ثغرة أمنية

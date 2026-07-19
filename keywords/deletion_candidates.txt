@@ -1,0 +1,83 @@
+# Measured deletion candidates - keywords that are a NET LIABILITY
+# Every appearance of each keyword below (across all 714 judged
+# corpus keywords, over the full 14,653-record census) fell in a record the
+# LLM judged not_cyber: zero good (cyber/borderline) appearances. These earned
+# NO tier and are candidates to drop from the lexicon (mostly literal-sense
+# or generic-security phrases: "protective barrier", "security audit", ...).
+# Format: keyword  <TAB>  # not_cyber appearances
+# Derived from evaluation/results/keyword_tiers_evidence.tsv by
+# evaluation/scripts/apply_tier_filter.py notes. 74 keywords.
+تدقيق أمني	# 20 not_cyber, 0 good
+حاجز الحماية	# 18 not_cyber, 0 good
+حاجز حماية	# 17 not_cyber, 0 good
+حواجز الحماية	# 13 not_cyber, 0 good
+الترقيع الأمني	# 12 not_cyber, 0 good
+فجوة هوائية	# 10 not_cyber, 0 good
+الجذيرات	# 9 not_cyber, 0 good
+التدقيق الامني	# 8 not_cyber, 0 good
+تقسيم الشبكات	# 6 not_cyber, 0 good
+اخفاء المعلومات	# 5 not_cyber, 0 good
+تجاوز التفويض	# 5 not_cyber, 0 good
+عكس النموذج	# 5 not_cyber, 0 good
+اصطياد الحيتان	# 4 not_cyber, 0 good
+القنابل المنطقية	# 4 not_cyber, 0 good
+برنامج دعائي	# 4 not_cyber, 0 good
+تدقيق امني	# 4 not_cyber, 0 good
+أمان الذكاء الاصطناعي	# 3 not_cyber, 0 good
+اختبار الصندوق الأسود	# 3 not_cyber, 0 good
+اكتشاف التسلل	# 3 not_cyber, 0 good
+الترقيعات الأمنية	# 3 not_cyber, 0 good
+محاولة اختراق النظام	# 3 not_cyber, 0 good
+أمن الفضاء المعلوماتي	# 2 not_cyber, 0 good
+أمن المواقع الإلكترونية	# 2 not_cyber, 0 good
+إرهاب إلكتروني	# 2 not_cyber, 0 good
+اصلاح الثغرات	# 2 not_cyber, 0 good
+الاختراقات الالكترونية	# 2 not_cyber, 0 good
+الرقعة الأمنية	# 2 not_cyber, 0 good
+النصب عبر الإنترنت	# 2 not_cyber, 0 good
+تأمين قواعد البيانات	# 2 not_cyber, 0 good
+تامين المعلومات	# 2 not_cyber, 0 good
+ترقيع الثغرات	# 2 not_cyber, 0 good
+تسريبات البيانات	# 2 not_cyber, 0 good
+روتكيت	# 2 not_cyber, 0 good
+سياسات أمن المعلومات	# 2 not_cyber, 0 good
+مركز العمليات الامنية	# 2 not_cyber, 0 good
+أمن تطبيقات الويب	# 1 not_cyber, 0 good
+أمن سلسلة التوريد	# 1 not_cyber, 0 good
+إدارة التصحيحات	# 1 not_cyber, 0 good
+إعادة التوجيه المفتوح	# 1 not_cyber, 0 good
+اختبار الصندوق الابيض	# 1 not_cyber, 0 good
+اختراق البريد الالكتروني	# 1 not_cyber, 0 good
+اعلانات خبيثة	# 1 not_cyber, 0 good
+الإرهاب الرقمي	# 1 not_cyber, 0 good
+الارهاب الرقمي	# 1 not_cyber, 0 good
+الاعلانات الخبيثة	# 1 not_cyber, 0 good
+الامن السحابي	# 1 not_cyber, 0 good
+الترقيعات الامنية	# 1 not_cyber, 0 good
+التشفير الكامل للقرص	# 1 not_cyber, 0 good
+التصيد الالكتروني	# 1 not_cyber, 0 good
+التنصت الالكتروني	# 1 not_cyber, 0 good
+التنصت على البيانات	# 1 not_cyber, 0 good
+الجرائم الحاسوبية	# 1 not_cyber, 0 good
+الديدان الإلكترونية	# 1 not_cyber, 0 good
+الديدان الالكترونية	# 1 not_cyber, 0 good
+الرقعة الامنية	# 1 not_cyber, 0 good
+المصادقة بعاملين	# 1 not_cyber, 0 good
+الهاكر الاخلاقي	# 1 not_cyber, 0 good
+الوعي التاميني	# 1 not_cyber, 0 good
+امن البيانات	# 1 not_cyber, 0 good
+تدقيقات أمنية	# 1 not_cyber, 0 good
+جذيرة	# 1 not_cyber, 0 good
+حجب الخدمة الموزع	# 1 not_cyber, 0 good
+حجب الخدمة الموزعة	# 1 not_cyber, 0 good
+حوكمة الأمن السيبراني	# 1 not_cyber, 0 good
+دالة تجزئة	# 1 not_cyber, 0 good
+ديدان الكترونية	# 1 not_cyber, 0 good
+ديدان حاسوبية	# 1 not_cyber, 0 good
+روت كيت	# 1 not_cyber, 0 good
+سياسة تأمينية	# 1 not_cyber, 0 good
+كيلوغر	# 1 not_cyber, 0 good
+مرفق خبيث	# 1 not_cyber, 0 good
+مركز عمليات الامن	# 1 not_cyber, 0 good
+هجمات الحقن	# 1 not_cyber, 0 good
+وصول غير مصرح	# 1 not_cyber, 0 good

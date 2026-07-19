@@ -124,3 +124,27 @@ The tier prototype rests on only 300 judged records, and therefore:
 ## 8. Conclusion
 
 The entire research infrastructure is in place and tested: the filter, the judging protocol, an expanded **1,233-keyword** lexicon, and a working prototype of the tier system. What remains is one small budget item — **maximum USD 150** — to turn the 300-record sample into full evidence over ~14,260 records, completing an Arabic cybersecurity filtering system whose precision is measured and whose every decision is explainable.
+
+---
+
+## 9. Post-census results — what was delivered
+
+The full-corpus judging is **done**. All **14,653** records of the expanded (v2) corpus were individually judged (`cyber` 3,131 / `borderline` 2,550 / `not_cyber` 8,972) — a complete census, not a sample, merged into [evaluation/chat_judging/judged_corpus.json](evaluation/chat_judging/judged_corpus.json). Each of the four promised deliverables (§7), measured:
+
+**1. A fully judged corpus.** ✓ 14,653 records, every one carrying an LLM verdict + justification. This is the reusable research asset.
+
+**2. A complete tier system.** ✓ Rebuilt on the census: **714** keywords assigned from real evidence (up from 286 in the sample), **136 / 295 / 57 / 152** in tiers 1–4, with **213** demoted out of Tier 1 (their solo matches were mostly false positives — e.g. `VPN`, 167 good vs 414 not_cyber). Audit trail: [evaluation/results/keyword_tiers_evidence.tsv](evaluation/results/keyword_tiers_evidence.tsv).
+
+**3. A second-generation filter.** ✓ The tiered acceptance rule, **measured exactly** on the census by [evaluation/scripts/apply_tier_filter.py](evaluation/scripts/apply_tier_filter.py):
+
+| Rule | Kept | Lenient precision | Retention of genuine | F1 |
+|---|---|---|---|---|
+| accept-all (v2 as-is) | 14,653 | 0.388 | 1.000 | 0.559 |
+| blind `min ≥ 2` | 4,846 | 0.625 | 0.534 | 0.576 |
+| **Tiered rule** | **6,041** | **0.636** | **0.677** | **0.656** |
+
+The tiered rule **strictly dominates the blind threshold** — higher precision *and* higher retention at once — and has the best F1. It lifts lenient precision from 0.39 to **0.64** while keeping **68%** of genuine records, exactly the "precision lift without sacrificing recall" the proposal argued for. (The §7 projection of ~0.85 lenient was based on the cleaner original lexicon; the v2 corpus deliberately traded precision for recall by adding the English false-positive-magnet terms, so 0.64 at 68% retention is the honest measured figure — and still a 64% relative precision gain.)
+
+**4. A measured deletion list.** ✓ **74** keywords whose every census appearance was `not_cyber` (zero good matches) — [keywords/deletion_candidates.txt](keywords/deletion_candidates.txt) — a review-and-drop list (mostly literal-sense phrases like `حاجز الحماية` "protective barrier", `تدقيق أمني` "audit"). They earn no tier, so the v3 filter already ignores them.
+
+Full write-up and the honest in-sample caveat: [evaluation/RESULTS.md](evaluation/RESULTS.md).

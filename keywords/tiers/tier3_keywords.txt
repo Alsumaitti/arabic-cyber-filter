@@ -1,7 +1,7 @@
 # Tier 3 - keywords that need TWO companions
 # Strongest positive evidence is in records with exactly 3 distinct
 # keyword hits.
-# Derived from evaluation/results/judged_sample_matched.json (300 LLM-judged records)
+# Derived from evaluation/chat_judging/judged_corpus.json (14,653 LLM-judged records)
 # by evaluation/scripts/build_keyword_tiers.py. Evidence per keyword:
 # evaluation/results/keyword_tiers_evidence.tsv
 الشبكة المظلمة

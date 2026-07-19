@@ -1,20 +1,117 @@
 # Results — What the LLM Judge Found
 
-Claude judged a stratified sample of **300** of the 13,345 keyword-matched
-records (plus a pooled sample of the rejected records for recall). Every verdict,
-with its English justification, is in [`judgments/`](judgments) and joined back
-to the source records in [`results/judged_sample_matched.json`](results/judged_sample_matched.json).
+Evaluation ran in two rounds. **Round 1** judged a stratified **sample** of 300
+of the 13,345 keyword-matched records (plus a pooled sample of the rejected
+records for recall). **Round 2** — after the lexicon was expanded to 1,233
+keywords and the corpus re-filtered ("v2", 14,653 records) — judged the corpus
+in **full**: a census of every single record. Every verdict, with its English
+justification, is in [`judgments/`](judgments) (round 1) and
+[`chat_judging/judged_corpus.json`](chat_judging/judged_corpus.json) (round 2).
+
+**The census below is the authoritative measurement.** The round-1 sample
+sections (precision by stratum, recall, false-positive patterns) are kept because
+they still carry the recall estimate and the qualitative failure analysis, which
+the census — which only covers *kept* records — does not replace.
 
 ## Headline
 
 The keyword filter has **high recall but modest precision**, and its precision is
 almost entirely determined by **how many distinct keywords a record hit**. A
-single incidental keyword is a weak signal; three or more is a strong one.
+single incidental keyword is a weak signal; three or more is a strong one. The
+census then turns that finding into a working **second-generation filter**: a
+tiered acceptance rule that lifts lenient precision from 0.39 to **0.64** while
+keeping **68%** of the genuine records — strictly beating a blind threshold on
+both precision and recall.
 
-## Precision by stratum
+## Full-corpus census (authoritative)
+
+Every one of the **14,653** v2-corpus records was read and labelled. Because this
+is the whole population, the numbers are **measured exactly** — no confidence
+intervals.
+
+| Label | Records | Share |
+|---|---|---|
+| `cyber` | 3,131 | 21.4% |
+| `borderline` | 2,550 | 17.4% |
+| `not_cyber` | 8,972 | 61.2% |
+| **Total** | **14,653** | 100% |
+
+### Precision by keyword-hit count (census)
+
+| Distinct keyword hits | Records | Share | Strict precision (`cyber`) | Lenient (`cyber`+`borderline`) |
+|---|---|---|---|---|
+| **1** | 9,807 | 66.9% | **0.116** | **0.270** |
+| **2** | 2,352 | 16.1% | **0.312** | **0.570** |
+| **3–5** | 1,887 | 12.9% | **0.464** | **0.645** |
+| **6+** | 607 | 4.1% | **0.631** | **0.778** |
+| **Whole corpus** | **14,653** | 100% | **0.214** | **0.388** |
+
+The monotonic rise with hit-count reproduces the round-1 sample at full resolution,
+but at a **lower absolute level** (whole-corpus strict 0.21 vs the sample's ~0.35).
+That is **by design**: v2 added the recall-driven Latin/English terms (`VPN`,
+`Firewall`, `Proxy`, `Antivirus` …), which are the corpus's biggest false-positive
+magnets — consumer-VPN/antivirus product pages, privacy-policy boilerplate, and
+auto-generated adware "removal" pages. The census prices that precision-for-recall
+trade exactly, per keyword — which is what the tiered filter below acts on.
+
+## Second-generation filter — the tiered acceptance rule (measured)
+
+The tiered lexicon ([`keywords/tiers/`](../keywords/tiers), rebuilt on the census:
+**136 / 295 / 57 / 152** keywords in tiers 1–4) drives the proposal's acceptance
+rule — *keep a record iff it matches ≥ 1 Tier-1 keyword, or ≥ 2 of tier ≤ 2, or
+≥ 3 of tier ≤ 3, or ≥ 4 tiered keywords of any tier*. Because the census carries a
+label for **every** record, [`scripts/apply_tier_filter.py`](scripts/apply_tier_filter.py)
+measures the rule exactly and against the naive baselines it set out to beat:
+
+| Rule | Kept | Strict P | Lenient P | Retention (of genuine) | F1 (lenient) |
+|---|---|---|---|---|---|
+| accept-all (v2 corpus as-is) | 14,653 | 0.214 | 0.388 | 1.000 | 0.559 |
+| min distinct keywords ≥ 2 | 4,846 | 0.411 | 0.625 | 0.534 | 0.576 |
+| min distinct keywords ≥ 3 | 2,494 | 0.504 | 0.678 | 0.297 | 0.413 |
+| **Tiered acceptance rule** | **6,041** | **0.397** | **0.636** | **0.677** | **0.656** |
+
+_Retention = share of all 5,681 genuine (`cyber`+`borderline`) records that the rule
+keeps. F1 = harmonic mean of lenient precision and retention._
+
+**The tiered rule strictly dominates the blind `min ≥ 2` threshold** — higher
+lenient precision (0.636 vs 0.625) **and** higher retention (0.677 vs 0.534) at
+once, and the best F1 of any rule (0.656). Against the raw v2 corpus it lifts
+lenient precision from 0.388 to **0.636** (a 64% relative gain) while still keeping
+**68%** of the genuine content. This is exactly the proposal's promise realised:
+the rule keeps the good single-hit records a flat threshold throws away (a record
+matched only by `الأمن السيبراني` is trusted; one matched only by `VPN` is not)
+while suppressing the metaphorical/product noise.
+
+The tiered rule kept 6,041 records = **cyber 2,398 + borderline 1,446 + not_cyber
+2,197**. To emit that accepted corpus, run `apply_tier_filter.py --write-corpus`
+(→ `result/cyber_arabic_v3_tiered.json`).
+
+> **Caveat (honest):** the tiers were learned from this same census, so the tiered
+> row is **in-sample** (optimistic). The baseline rows use no labels, so they are
+> unbiased — the fair reading is "tiered rule **vs those baselines**", where it wins
+> on both axes.
+
+## Measured deletion list — keywords that are a net liability
+
+Crossing every keyword against the census also exposes the lexicon's dead weight:
+**74** keywords whose *every* judged appearance (across all 14,653 records) landed
+in a `not_cyber` record — zero good matches. They earn no tier (so the v3 rule
+already ignores them) and are the measured **review-and-drop list**
+([`keywords/deletion_candidates.txt`](../keywords/deletion_candidates.txt)). The
+worst offenders are literal-sense or generic phrases: `تدقيق أمني` (20 not_cyber —
+"audit" in a business sense), `حاجز الحماية` / `حاجز حماية` / `حواجز الحماية` (48
+combined — a literal "protective barrier"), `الترقيع الأمني`, `فجوة هوائية` (a
+literal "air gap/void"). A few are valid cyber concepts (`تقسيم الشبكات` network
+segmentation, `اخفاء المعلومات` steganography) whose handful of corpus matches were
+literal-sense or drowned by dominant `not_cyber` signals — so this is a
+**human-review** list, not an automatic delete. Either way, their no-tier status
+means they cannot trigger a false accept in the tiered filter.
+
+## Precision by stratum (round-1 stratified sample, 300 records)
 
 Judged blind, `cyber` = cybersecurity is a main topic, `borderline` = present but
-minor, `not_cyber` = false positive. Confidence intervals are Wilson 95%.
+minor, `not_cyber` = false positive. Confidence intervals are Wilson 95%. _(These
+were the sample estimates; the census above supersedes them for precision.)_
 
 | Distinct keyword hits | Corpus share | n judged | `cyber` | `borderline` | `not_cyber` | Strict precision | Lenient precision |
 |---|---|---|---|---|---|---|---|

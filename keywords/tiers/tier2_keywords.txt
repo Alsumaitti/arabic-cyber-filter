@@ -2,7 +2,7 @@
 # Strongest positive evidence for these is in records with exactly 2
 # distinct keyword hits (includes Tier-1 candidates demoted because their
 # solo records were mostly false positives, e.g. metaphorical uses).
-# Derived from evaluation/results/judged_sample_matched.json (300 LLM-judged records)
+# Derived from evaluation/chat_judging/judged_corpus.json (14,653 LLM-judged records)
 # by evaluation/scripts/build_keyword_tiers.py. Evidence per keyword:
 # evaluation/results/keyword_tiers_evidence.tsv
 VPN
