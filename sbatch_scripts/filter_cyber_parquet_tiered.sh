@@ -15,16 +15,20 @@
 #
 # TASK MAPPING: with only ~25 files, one-task-per-file both under-uses the
 # cluster and makes a failure cost a whole 5 GB file. Each file is therefore
-# split into PARTS row-group slices:
+# split into PARTS contiguous row-group slices:
 #     file_index = TASK_ID / PARTS      part_index = TASK_ID % PARTS
-# so 25 files x 4 parts = 100 tasks (same array width as the v3 run), and a
-# failure costs ~1.3 GB of re-reading instead of 5 GB.
+# At the default PARTS=8 that is 25 x 8 = 200 tasks, ~340k rows each, and a
+# failure costs ~1/8 of a file instead of the whole 5 GB.
 #
 # !! BEFORE THE FIRST SUBMIT (SLURM opens the log files before this script
 #    runs - a missing dir kills the task with NO log):
 #      mkdir -p ~/fanar-data/cyber_filtered/{logs_v4,output_v4}
 #
-# !! SET --array CORRECTLY:
+# !! THE ARRAY RANGE AND *PARTS* MUST AGREE: the array must cover exactly
+#    0 .. (NFILES*PARTS - 1). If the array is SHORTER, the tail files are
+#    silently never processed (e.g. PARTS=40 with --array=0-199 processes
+#    only 5 of 25 files). This script warns when that happens, and
+#    merge_v4.sh refuses to merge an incomplete set.
 #      N=$(ls ~/fanar-data/fineweb-2-arabic/data/arb_Arab/train/*.parquet | wc -l)
 #      echo $(( N * 8 - 1 ))        # <- put this in --array=0-<that>
 #
@@ -53,6 +57,25 @@ mkdir -p "$BASE/logs_v4" "$OUT_DIR"
 mapfile -d '' -t FILES < <(find "$INPUT_DIR" -maxdepth 1 -type f -name '*.parquet' -print0 | sort -z)
 NFILES=${#FILES[@]}
 TOTAL=$(( NFILES * PARTS ))
+
+if (( NFILES == 0 )); then
+    echo "ERROR: no *.parquet found in $INPUT_DIR - wrong path?"
+    exit 1
+fi
+
+# Guard: the array must cover 0..TOTAL-1. A short array silently skips whole
+# files (PARTS=40 with --array=0-199 would process only 5 of 25 files), and
+# nothing downstream could tell the difference - every output that DOES exist
+# looks complete. Warn loudly in every task; merge_v4.sh enforces it.
+if [[ -n "${SLURM_ARRAY_TASK_MAX:-}" ]] && (( SLURM_ARRAY_TASK_MAX + 1 < TOTAL )); then
+    echo "############################################################"
+    echo "WARNING: array covers 0-$SLURM_ARRAY_TASK_MAX but there are $TOTAL slices"
+    echo "         ($NFILES files x PARTS=$PARTS)."
+    echo "         Slices $(( SLURM_ARRAY_TASK_MAX + 1 ))..$(( TOTAL - 1 )) will NOT run"
+    echo "         => only $(( (SLURM_ARRAY_TASK_MAX + 1) / PARTS )) of $NFILES files processed."
+    echo "         For a full run resubmit with:  --array=0-$(( TOTAL - 1 ))"
+    echo "############################################################"
+fi
 
 if (( SLURM_ARRAY_TASK_ID >= TOTAL )); then
     echo "task $SLURM_ARRAY_TASK_ID >= $TOTAL slices ($NFILES files x $PARTS parts) -> nothing to do."

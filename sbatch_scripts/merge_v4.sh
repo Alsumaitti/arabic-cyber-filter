@@ -31,6 +31,8 @@ RESULT_DIR=$BASE/result
 
 mkdir -p "$RESULT_DIR"
 
+INPUT_DIR=$ROOT/fineweb-2-arabic/data/arb_Arab/train
+
 missing=0
 shopt -s nullglob
 for j in "$OUT_DIR"/cyber_v4_*.json; do
@@ -45,6 +47,32 @@ if (( missing > 0 )); then
 fi
 if (( NJSON == 0 )); then
     echo "ABORT: no shard outputs in $OUT_DIR"; exit 1
+fi
+
+# --- coverage gate --------------------------------------------------------
+# "every output has its .done" is NOT enough: if the array was shorter than
+# NFILES*PARTS, whole files were never attempted, so no output exists for them
+# and the check above passes anyway. Verify the EXPECTED number of slices.
+PARTS_SEEN=$(ls "$OUT_DIR"/cyber_v4_*_P*_p*.json 2>/dev/null \
+             | sed -E 's/.*_P([0-9]+)_p[0-9]+\.json$/\1/' | sort -un)
+NPARTS_VALUES=$(echo "$PARTS_SEEN" | grep -c . || true)
+if (( NPARTS_VALUES != 1 )); then
+    echo "ABORT: outputs mix PARTS values ($(echo $PARTS_SEEN | tr '\n' ' '))."
+    echo "       Different PARTS slice differently - merging them would DUPLICATE"
+    echo "       records. Keep only one set (e.g. mkdir old && mv *_P8_p*.* old/)."
+    exit 1
+fi
+PARTS=$PARTS_SEEN
+NFILES=$(ls "$INPUT_DIR"/*.parquet 2>/dev/null | wc -l)
+EXPECTED=$(( NFILES * PARTS ))
+echo "coverage: PARTS=$PARTS, input files=$NFILES -> expected $EXPECTED slices, have $NDONE"
+if (( NDONE != EXPECTED )); then
+    echo "ABORT: incomplete coverage - $NDONE/$EXPECTED slices done."
+    echo "       Whole files may never have been attempted (a too-short --array"
+    echo "       does exactly this). Resubmit the filter with:"
+    echo "         sbatch --export=ALL,PARTS=$PARTS --array=0-$(( EXPECTED - 1 )) \\"
+    echo "                sbatch_scripts/filter_cyber_parquet_tiered.sh"
+    exit 1
 fi
 
 source ~/anaconda3/etc/profile.d/conda.sh 2>/dev/null || source ~/miniconda3/etc/profile.d/conda.sh
