@@ -205,10 +205,19 @@ def main():
         pf = pq.ParquetFile(path)
         cols = pick_columns(pf)
         n_rg = pf.metadata.num_row_groups
-        mine = [i for i in range(n_rg) if i % args.parts == args.part]
+        # CONTIGUOUS slices, not interleaved: each task reads one sequential
+        # region of the file. Row groups here are uniform (1,000 rows), so
+        # contiguous balances just as well as round-robin while giving
+        # sequential I/O - which matters when PARTS tasks read the same
+        # multi-GB file concurrently off a shared filesystem.
+        per, rem = divmod(n_rg, args.parts)
+        start = args.part * per + min(args.part, rem)
+        count = per + (1 if args.part < rem else 0)
+        mine = list(range(start, start + count))
         print(f"[{os.path.basename(path)}] {pf.metadata.num_rows:,} rows, "
               f"{n_rg} row groups -> this task takes {len(mine)} "
-              f"(part {args.part}/{args.parts})", flush=True)
+              f"(row groups {start}..{start + count - 1}, "
+              f"part {args.part}/{args.parts})", flush=True)
         if not mine:
             continue
 
