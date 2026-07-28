@@ -91,6 +91,45 @@ The tiered rule kept 6,041 records = **cyber 2,398 + borderline 1,446 + not_cybe
 2,197**. To emit that accepted corpus, run `apply_tier_filter.py --write-corpus`
 (→ `result/cyber_arabic_v3_tiered.json`).
 
+### Produced at scale — and independently validated
+
+The rule above was not left on paper: it was implemented as a production filter
+([`scripts/filter_cyber_arabic_tiered.py`](../scripts/filter_cyber_arabic_tiered.py))
+and **re-run over the full 1,000,000-record FineWeb2 sample** on the cluster
+(100-task `cpu-all` SLURM array, resumable — see
+[`TIERED_RUN_GUIDE.md`](../TIERED_RUN_GUIDE.md)), producing
+`result/cyber_arabic_v3_ALL.{json,csv}`.
+
+That run is a genuine end-to-end check, because it reached its answer by a
+completely different path than the table above (a fresh regex scan of 1M raw
+records, vs. offline arithmetic over the census). The two agree **exactly**:
+
+| | Offline, from the census | Cluster, scanning 1M raw records |
+|---|---|---|
+| Accepted | 6,041 | **6,041** |
+| `tier1_hit` | 3,253 | **3,253** |
+| `two_tier2_hits` | 2,780 | **2,780** |
+| `three_tier3_hits` | 6 | **6** |
+| `four_plus_hits` | 2 | **2** |
+
+**Why they must agree** (and why this is a real test, not a tautology): the tier
+lexicon (640 keywords) is a verified strict subset of the v2 lexicon (1,233), and
+every clause of the rule needs ≥ 1 tier-keyword hit — so any accepted record was
+necessarily already kept by v2, i.e. already inside the judged 14,653. A record
+from the other ~985,000 *cannot* pass. Confirmed empirically by
+[`join_v3_with_judgments.py`](scripts/join_v3_with_judgments.py): all 6,041
+matched an existing verdict by text hash, **0 unmatched, 0 new**. Divergence would
+have meant a truncated tier file, a stale upload, or the wrong input shards.
+
+The v3 corpus is therefore a strict, higher-precision **subset** of v2 — a
+precision refinement, never a recall extension. Relative to v2 it discards
+**6,775 of the 8,972 junk records (75%)** while retaining **2,398 of the 3,131
+strictly-cyber ones (77%)**; the discarded pile itself measures only 0.085 strict
+/ 0.213 lenient precision, confirming the rule cuts along the intended seam.
+Because every accepted record already carries a census verdict, the shipped
+corpus is published **with labels attached**
+(`result/cyber_arabic_v3_ALL_judged.json`).
+
 > **Caveat (honest):** the tiers were learned from this same census, so the tiered
 > row is **in-sample** (optimistic). The baseline rows use no labels, so they are
 > unbiased — the fair reading is "tiered rule **vs those baselines**", where it wins

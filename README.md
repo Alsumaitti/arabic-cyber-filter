@@ -56,10 +56,12 @@ Three principles drove the design:
 | Metric | Value |
 |---|---|
 | Input records scanned | **1,000,000** (100 shards × 10,000 records) |
-| Records matched (kept) | **13,345** (~1.33%) |
-| Keyword lexicon size | **1,209** Arabic terms & phrases |
+| Records matched (kept) | v1 **13,345** (1,209 kw) → v2 **14,653** (1,233 kw) → **v3 6,041** (tiered rule) |
+| Keyword lexicon size | **1,209** → **1,233** Arabic + English terms; **640** of them evidence-tiered |
+| Every record LLM-judged | **14,653 / 14,653** (full census, 100%) |
+| Measured precision (lenient) | v2 **0.388** → v3 **0.636**, keeping 77% of the strictly-cyber docs |
 | Common Crawl dumps covered | **96** (from `CC-MAIN-2013-20` to `CC-MAIN-2024-18`) |
-| Final outputs | `cyber_arabic_ALL.json` (~193 MB) + `cyber_arabic_ALL.csv` (~191 MB) |
+| Final outputs | `cyber_arabic_v3_ALL.{json,csv}` (~78 MB) + `_judged.json` (verdict per record) |
 | Wall-clock strategy | 100 parallel SLURM tasks (~1–2 min each) instead of hours sequentially |
 
 ## Pipeline architecture
@@ -263,6 +265,8 @@ _(Wilson 95% confidence intervals in parentheses; strata combined using their tr
 The flat `--min-keywords 2` fix above throws away *every* single-hit record, including the genuinely good ones. The judge data supports something sharper: **measure each keyword's individual reliability** and tier the lexicon by how much co-occurring evidence a keyword needs before its match is trustworthy. A record judged cyber on the strength of `الأمن السيبراني` *alone* proves that keyword self-sufficient (Tier 1); a keyword only ever seen in 4+-hit cyber records has never carried a document by itself (Tier 4). Crucially, a keyword whose solo matches are *mostly false positives* is demoted regardless — across the full census `VPN` carried **167** records to a `cyber`/`borderline` verdict on its own but sank **414** into `not_cyber` (consumer-VPN product pages), so despite hundreds of solo "wins" it is **not** Tier 1; `الأبواب الخلفية` (backdoors, plural) went 3 good vs 71 not_cyber. In all, **213** keywords were demoted out of Tier 1 this way. Rebuilt on the full census (**714** keywords with at least one judged appearance), the result is **136 / 295 / 57 / 152** keywords in tiers 1–4 ([`keywords/tiers/`](keywords/tiers)), each assignment backed by a per-keyword audit trail ([`evaluation/results/keyword_tiers_evidence.tsv`](evaluation/results/keyword_tiers_evidence.tsv)), plus **74** keywords that earned **no** tier because every judged appearance was not_cyber (e.g. `تدقيق أمني` / `حاجز الحماية` — literal "security audit" / "protective barrier" false positives). Method, demotion rule, tier-based filtering recipe, and coverage caveats: [`evaluation/README.md`](evaluation/README.md#tiered-keywords--learning-each-keywords-evidential-weight).
 
 **The second-generation filter, measured.** The tier system is not just a lexicon — it drives an acceptance rule (*keep a record iff it matches ≥ 1 Tier-1 keyword, or ≥ 2 of tier ≤ 2, or ≥ 3 of tier ≤ 3, or ≥ 4 tiered keywords*). Because the census labels **every** record, [`evaluation/scripts/apply_tier_filter.py`](evaluation/scripts/apply_tier_filter.py) measures it exactly: the tiered rule lifts lenient precision from **0.39 → 0.64** while retaining **68%** of all genuine records — and **strictly beats a blind `min ≥ 2` threshold on both precision *and* recall** (0.636 P / 0.677 retention vs 0.625 / 0.534), for the best F1 (0.656) of any rule. The same census exposes **74 net-liability keywords** whose every appearance was `not_cyber` — a measured review-and-drop list in [`keywords/deletion_candidates.txt`](keywords/deletion_candidates.txt). Full table, baselines, and the in-sample caveat: [`evaluation/RESULTS.md`](evaluation/RESULTS.md).
+
+**Shipped as the v3 corpus.** The rule was implemented as a production filter and re-run over the full **1,000,000-record** FineWeb2 sample (100-task `cpu-all` SLURM array, resumable — [`TIERED_RUN_GUIDE.md`](TIERED_RUN_GUIDE.md)), yielding **6,041 documents** (`result/cyber_arabic_v3_ALL.{json,csv}`). The cluster run reproduced the offline census prediction **exactly — 6,041 records, clause for clause** (3,253 / 2,780 / 6 / 2) — despite reaching it by a completely different path, and a text-hash join confirmed **0 records outside the judged census**. Since v3 ⊂ v2, every record ships **with its LLM verdict attached** (`cyber_arabic_v3_ALL_judged.json`: 2,398 `cyber` · 1,446 `borderline` · 2,197 `not_cyber`). Details: [`evaluation/RESULTS.md` § Produced at scale](evaluation/RESULTS.md#produced-at-scale--and-independently-validated).
 
 ### Recall
 
