@@ -22,6 +22,12 @@
 # mid-run (node death, timeout, preemption), just RESUBMIT THIS SAME FILE -
 # finished shards exit in ~1 second, only unfinished ones re-run.
 #
+# !! BEFORE THE FIRST SUBMIT, create the log/output dirs ONCE:
+#      mkdir -p ~/fanar-data/cyber_filtered/{logs_tiered,output_tiered}
+#    SLURM opens the --output/--error files BEFORE this script body runs, so
+#    if logs_tiered/ does not exist the job dies instantly with NO log file.
+#    (The mkdir below only helps for later runs - it is too late for logging.)
+#
 # BEFORE SUBMITTING, count the shards and fix --array above:
 #   ls ~/fanar-data/FineWeb2/*.jsonl.gz | wc -l   -> set --array=0-<count-1>
 #

@@ -77,12 +77,24 @@ ssh $H "wc -l $B/keywords/tiers_clean/tier?_keywords.txt"
 If the `.sh` files were ever touched by a Windows editor, strip CRLF once:
 `ssh $H "sed -i 's/\r$//' $B/sbatch_scripts/filter_cyber_tiered.sh $B/sbatch_scripts/merge_cyber_tiered.sh"`
 
-## 3 · Size the array & smoke-test one shard
+## 3 · Create the output dirs — REQUIRED before the first submit
 
 ```bash
 ssh $H
 cd ~/fanar-data/cyber_filtered
+mkdir -p logs_tiered output_tiered
+```
 
+**Do not skip this.** SLURM opens the `--output`/`--error` files *before* the
+job script runs, so if `logs_tiered/` doesn't exist the job dies immediately
+and writes **no log at all** (symptom: `sbatch` returns a job id, then
+`tail logs_tiered/*_0.out` says *No such file or directory*, and
+`sacct -j <id> -X` shows the task failed). The `mkdir` inside the script
+cannot prevent this — it runs too late.
+
+## 4 · Size the array & smoke-test one shard
+
+```bash
 ls ~/fanar-data/FineWeb2/*.jsonl.gz | wc -l     # e.g. 100
 # if not 100, edit  #SBATCH --array=0-99  in sbatch_scripts/filter_cyber_tiered.sh
 # to 0-<count-1>
@@ -91,13 +103,14 @@ ls ~/fanar-data/FineWeb2/*.jsonl.gz | wc -l     # e.g. 100
 sbatch --array=0-0 sbatch_scripts/filter_cyber_tiered.sh
 squeue -u $USER                                  # wait for it to finish
 tail -20 logs_tiered/*_0.out
+sacct -j <jobid> --format=JobID,State,ExitCode -X   # State must be COMPLETED
 ```
 
 The log must end with the acceptance summary, e.g.
 `matched >=1 keyword : N  /  accepted (tiered) : M  (~40-45% of matched)`,
 and `output_tiered/` must contain `cyber_v3_<shard>.json`, `.csv`, **`.done`**.
 
-## 4 · Launch the full parallel run (`cpu-all`)
+## 5 · Launch the full parallel run (`cpu-all`)
 
 ```bash
 sbatch sbatch_scripts/filter_cyber_tiered.sh
@@ -117,7 +130,7 @@ sacct -j <jobid> --format=JobID,State,Elapsed -X  # per-task states
 grep -l "done marker exists" logs_tiered/*.out | wc -l   # how many were resumes
 ```
 
-## 5 · If ANYTHING fails mid-run → just resubmit
+## 6 · If ANYTHING fails mid-run → just resubmit
 
 This is the resume story, and it is one command:
 
@@ -132,7 +145,7 @@ sbatch sbatch_scripts/filter_cyber_tiered.sh
 - Safe to resubmit any number of times; also safe to resubmit only the
   failed indices if you prefer: `sbatch --array=17,42 sbatch_scripts/filter_cyber_tiered.sh`.
 
-## 6 · Merge (as a job, never on the login node)
+## 7 · Merge (as a job, never on the login node)
 
 ```bash
 sbatch sbatch_scripts/merge_cyber_tiered.sh
@@ -148,7 +161,7 @@ result/cyber_arabic_v3_ALL.json
 result/cyber_arabic_v3_ALL.csv     (utf-8-sig → opens clean in Excel)
 ```
 
-## 7 · Sanity-check the result
+## 8 · Sanity-check the result
 
 ```bash
 python - <<'EOF'

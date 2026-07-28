@@ -15,6 +15,11 @@
 # Deliberately a proper sbatch job with 32 GB, NOT a login-node command
 # (login-node limits killed the v1 merge - lesson learned).
 #
+# !! logs_tiered/ must already exist (the filter array creates it, or run
+#    mkdir -p ~/fanar-data/cyber_filtered/logs_tiered) - SLURM opens the
+#    --output/--error files before this script runs, so a missing directory
+#    kills the job with no log at all.
+#
 # Sanity gate: refuses to merge if any shard output lacks its .done marker,
 # so a half-finished array can never silently produce a truncated corpus.
 # ---------------------------------------------------------------------------
