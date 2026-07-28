@@ -89,10 +89,15 @@ arabic-cyber-filter/
 ├── scripts/
 │   ├── filter_cyber_arabic.py    # Stage 1: keyword filter (batch or single-shard mode)
 │   ├── merge_cyber_outputs.py    # Stage 2: merge per-shard outputs into one corpus
+│   ├── filter_cyber_arabic_tiered.py  # v3: TIERED acceptance rule filter (resumable, .done markers)
+│   ├── merge_cyber_outputs_tiered.py  # v3 merge (schema-aware: tiers_found, accept_rule)
 │   └── llm_judge_api.py          # LLM-as-judge over the whole corpus (Claude Batches API)
 ├── sbatch_scripts/
 │   ├── filter_cyber_arabic.sh    # SLURM array job — one task per shard
-│   └── merge_cyber_outputs.sh    # SLURM merge job — run after the array finishes
+│   ├── merge_cyber_outputs.sh    # SLURM merge job — run after the array finishes
+│   ├── filter_cyber_tiered.sh    # v3 SLURM array job (cpu-all, resumable: resubmit = resume)
+│   └── merge_cyber_tiered.sh     # v3 merge job with .done completeness gate
+├── TIERED_RUN_GUIDE.md           # step-by-step: move tier files to the cluster + run v3
 ├── keywords/
 │   ├── arabic_cyber_keywords.txt          # 1,209-term Arabic cybersecurity lexicon (original, unchanged)
 │   ├── missing_cybersecurity_keywords.txt # 24 recall-gap terms mined from missed records (mostly English: VPN, Firewall…)
