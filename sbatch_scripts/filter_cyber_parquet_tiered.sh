@@ -40,7 +40,13 @@ TIERS_DIR=$BASE/keywords/tiers_clean
 INPUT_DIR=$ROOT/fineweb-2-arabic/data/arb_Arab/train
 OUT_DIR=$BASE/output_v4
 
-PARTS=8                      # row-group slices per parquet file (25 files x 8 = 200 tasks)
+# Row-group slices per parquet file. Override at submit time WITHOUT editing
+# this file, e.g. 25 files x 40 parts = 1000 tasks:
+#     sbatch --export=ALL,PARTS=40 --array=0-999 sbatch_scripts/filter_cyber_parquet_tiered.sh
+# NOTE: PARTS is part of the output filename, so two different PARTS values
+# never overwrite or silently mix with each other (the merge job refuses to
+# merge a mixture). Changing PARTS = a fresh, independent set of outputs.
+PARTS=${PARTS:-8}
 
 mkdir -p "$BASE/logs_v4" "$OUT_DIR"
 
@@ -57,7 +63,7 @@ FILE_IDX=$(( SLURM_ARRAY_TASK_ID / PARTS ))
 PART_IDX=$(( SLURM_ARRAY_TASK_ID % PARTS ))
 FILE_PATH="${FILES[$FILE_IDX]}"
 STEM=$(basename "$FILE_PATH" .parquet)
-OUT_PREFIX=$OUT_DIR/cyber_v4_${STEM}_p${PART_IDX}
+OUT_PREFIX=$OUT_DIR/cyber_v4_${STEM}_P${PARTS}_p${PART_IDX}
 
 if [[ -f "$OUT_PREFIX.done" ]]; then
     echo "=== $STEM part $PART_IDX already done, skipping | $(date) ==="

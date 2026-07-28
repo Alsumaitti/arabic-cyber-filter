@@ -43,7 +43,22 @@ def main():
                    if not p.endswith(".json.tmp"))
     if not paths:
         sys.exit(f"error: no .json shard outputs in {args.dir}")
-    print(f"merging {len(paths)} shard file(s) (streaming) ...", flush=True)
+
+    # Guard: outputs are named ..._P<PARTS>_p<idx>.json. Two different PARTS
+    # values slice the same row groups differently, so merging a mixture would
+    # duplicate records. Refuse, and say exactly which sets are present.
+    import re as _re
+    seen = collections.Counter()
+    for p in paths:
+        m = _re.search(r"_P(\d+)_p\d+\.json$", os.path.basename(p))
+        seen[m.group(1) if m else "unlabelled"] += 1
+    if len(seen) > 1:
+        sys.exit("error: output dir mixes runs with different PARTS values: "
+                 + ", ".join(f"P{k} ({v} files)" for k, v in sorted(seen.items()))
+                 + "\n       Merging them would DUPLICATE records. Keep only one set,\n"
+                   "       e.g.:  mkdir old && mv *_P8_p*.* old/")
+    print(f"merging {len(paths)} shard file(s), PARTS={list(seen)[0]} (streaming) ...",
+          flush=True)
 
     out_dir = os.path.dirname(args.out_prefix)
     if out_dir:
