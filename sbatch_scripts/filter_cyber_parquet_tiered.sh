@@ -67,6 +67,16 @@ fi
 source ~/anaconda3/etc/profile.d/conda.sh 2>/dev/null || source ~/miniconda3/etc/profile.d/conda.sh
 conda activate ocr-env
 
+# pyarrow must already be installed - by setup_and_inspect_parquet.sh, ONCE.
+# Deliberately only a CHECK here: 100 array tasks running `conda install`
+# concurrently would race on the same env and can corrupt it.
+if ! python -c "import pyarrow" 2>/dev/null; then
+    echo "ERROR: pyarrow is not installed in ocr-env."
+    echo "       Run the one-time pre-flight job first:"
+    echo "         sbatch sbatch_scripts/setup_and_inspect_parquet.sh"
+    exit 1
+fi
+
 echo "=== node $(hostname) | task $SLURM_ARRAY_TASK_ID/$TOTAL | file $STEM | part $PART_IDX/$PARTS | $(date) ==="
 
 python "$SCRIPT" \
