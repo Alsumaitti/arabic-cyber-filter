@@ -148,6 +148,10 @@ def main():
                     help="rows per Arrow batch (memory knob)")
     ap.add_argument("--strip-tashkeel", action="store_true")
     ap.add_argument("--no-done-marker", action="store_true")
+    ap.add_argument("--no-csv", action="store_true",
+                    help="skip the per-shard CSV. The merge reads only *.json, so "
+                         "at v4 scale these CSVs are ~5 GB written and never read; "
+                         "the merge can regenerate one from the final corpus (--csv).")
     ap.add_argument("--inspect", action="store_true",
                     help="print schema/row counts and exit (no filtering)")
     ap.add_argument("--progress-every", type=int, default=200_000,
@@ -197,9 +201,11 @@ def main():
     json_out = open(json_path + ".tmp", "w", encoding="utf-8")
     json_out.write("[\n")
     first = True
-    csv_out = open(csv_path + ".tmp", "w", encoding="utf-8-sig", newline="")
-    writer = csv.DictWriter(csv_out, fieldnames=columns)
-    writer.writeheader()
+    csv_out = writer = None
+    if not args.no_csv:
+        csv_out = open(csv_path + ".tmp", "w", encoding="utf-8-sig", newline="")
+        writer = csv.DictWriter(csv_out, fieldnames=columns)
+        writer.writeheader()
 
     for path in files:
         pf = pq.ParquetFile(path)
@@ -249,10 +255,11 @@ def main():
                     json_out.write(",\n")
                 json_out.write(json.dumps(row, ensure_ascii=False))
                 first = False
-                cr = dict(row)
-                cr["keywords_found"] = json.dumps(hits, ensure_ascii=False)
-                cr["tiers_found"] = json.dumps(tiers, ensure_ascii=False)
-                writer.writerow(cr)
+                if writer:
+                    cr = dict(row)
+                    cr["keywords_found"] = json.dumps(hits, ensure_ascii=False)
+                    cr["tiers_found"] = json.dumps(tiers, ensure_ascii=False)
+                    writer.writerow(cr)
 
                 if total % args.progress_every == 0:
                     el = time.time() - t0
@@ -261,9 +268,10 @@ def main():
 
     json_out.write("\n]\n")
     json_out.close()
-    csv_out.close()
     os.replace(json_path + ".tmp", json_path)
-    os.replace(csv_path + ".tmp", csv_path)
+    if csv_out:
+        csv_out.close()
+        os.replace(csv_path + ".tmp", csv_path)
     if not args.no_done_marker:
         with open(done_path, "w") as f:
             f.write(f"records={total} matched_any={matched_any} accepted={accepted}\n")
@@ -274,7 +282,9 @@ def main():
     print(f"accepted (tiered)   : {accepted:,} "
           f"({100.0*accepted/matched_any if matched_any else 0:.1f}% of matched)")
     print(f"acceptance clauses  : {rule_counts}")
-    print(f"json -> {json_path}\ncsv  -> {csv_path}")
+    print(f"json -> {json_path}")
+    if csv_out is not None:
+        print(f"csv  -> {csv_path}")
 
 
 if __name__ == "__main__":
