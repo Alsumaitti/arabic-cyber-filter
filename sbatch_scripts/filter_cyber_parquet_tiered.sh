@@ -7,7 +7,8 @@
 #SBATCH -q normal
 #SBATCH --cpus-per-task=4
 #SBATCH --mem=16G
-#SBATCH --time=24:00:00
+#SBATCH --time=02:00:00     # measured ~23 min/task at PARTS=8; 5x margin, and a
+                            # short limit lets SLURM backfill you into gaps sooner
 
 # ---------------------------------------------------------------------------
 # V4 = the SAME v3 tiered acceptance rule, applied to the FULL parquet
