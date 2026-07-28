@@ -11,9 +11,13 @@
 # ---------------------------------------------------------------------------
 # MERGE for the v4 parquet run - run AFTER the whole filter array finishes.
 #
-# Uses the STREAMING merger: ~420k accepted records / ~5 GB of JSON is far too
-# much to accumulate in memory, so shards are read one at a time and appended
-# straight to the output. 32 GB is plenty for that.
+# Uses the STREAMING merger: ~420k accepted records / ~5 GB is far too much to
+# accumulate in memory, so shards are read one at a time and appended straight
+# to the output. 32 GB is plenty for that.
+#
+# Output is JSONL (one record per line) - at 5 GB a single JSON array would
+# need ~16-21 GB of RAM just to read back, defeating the point. Add
+# --format json if you specifically need an array, --csv for a CSV copy.
 #
 # Completeness gate: refuses to merge unless every shard .json has its .done
 # marker, so an unfinished array can never yield a silently truncated corpus.
