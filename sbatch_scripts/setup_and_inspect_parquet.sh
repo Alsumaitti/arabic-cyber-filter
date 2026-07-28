@@ -28,7 +28,7 @@ ROOT=/export/home/oalsumaitti/fanar-data
 BASE=$ROOT/cyber_filtered
 SCRIPT=$BASE/scripts/filter_cyber_parquet_tiered.py
 INPUT_DIR=$ROOT/fineweb-2-arabic/data/arb_Arab/train
-PARTS=4                       # keep in sync with filter_cyber_parquet_tiered.sh
+PARTS=8                       # keep in sync with filter_cyber_parquet_tiered.sh
 
 mkdir -p "$BASE/logs_v4" "$BASE/output_v4"
 

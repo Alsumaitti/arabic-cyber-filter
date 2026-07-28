@@ -2,7 +2,7 @@
 #SBATCH --job-name=cyber-tier-pq
 #SBATCH --output=/export/home/oalsumaitti/fanar-data/cyber_filtered/logs_v4/%A_%a.out
 #SBATCH --error=/export/home/oalsumaitti/fanar-data/cyber_filtered/logs_v4/%A_%a.err
-#SBATCH --array=0-99            # = (NUM_FILES * PARTS) - 1   ... see below
+#SBATCH --array=0-199           # = (NUM_FILES * PARTS) - 1  = 25*8-1 ... see below
 #SBATCH -p cpu-all
 #SBATCH -q normal
 #SBATCH --cpus-per-task=4
@@ -26,7 +26,7 @@
 #
 # !! SET --array CORRECTLY:
 #      N=$(ls ~/fanar-data/fineweb-2-arabic/data/arb_Arab/train/*.parquet | wc -l)
-#      echo $(( N * 4 - 1 ))        # <- put this in --array=0-<that>
+#      echo $(( N * 8 - 1 ))        # <- put this in --array=0-<that>
 #
 # RESUMABLE: every finished (file,part) leaves a .done marker; just RESUBMIT
 # this same file after any failure - finished slices exit in ~1 second.
@@ -40,7 +40,7 @@ TIERS_DIR=$BASE/keywords/tiers_clean
 INPUT_DIR=$ROOT/fineweb-2-arabic/data/arb_Arab/train
 OUT_DIR=$BASE/output_v4
 
-PARTS=4                      # row-group slices per parquet file
+PARTS=8                      # row-group slices per parquet file (25 files x 8 = 200 tasks)
 
 mkdir -p "$BASE/logs_v4" "$OUT_DIR"
 
