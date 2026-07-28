@@ -120,6 +120,26 @@ def build_pattern(keywords: list[str]) -> re.Pattern:
     return re.compile(pattern, re.UNICODE | re.IGNORECASE)
 
 
+def canonicalize(hit: str, canon: dict, keywords: list) -> str | None:
+    """Map a matched substring back to the exact lexicon keyword.
+
+    Usually a simple .lower() lookup. But re.IGNORECASE folds some Unicode
+    pairs that .lower() does NOT invert - notably Turkish dotless i: the
+    pattern 'Hacking' matches the text 'hackıng' (because 'ı'.upper() == 'I'),
+    yet 'hackıng'.lower() is still 'hackıng', so the lookup misses. Returning
+    the raw text there would break the invariant that every hit is a lexicon
+    key (KeyError downstream). On a miss, recover the keyword by
+    case-insensitive comparison; misses are rare so the scan costs nothing.
+    """
+    kw = canon.get(hit.lower())
+    if kw is not None:
+        return kw
+    for k in keywords:
+        if len(k) == len(hit) and re.fullmatch(re.escape(k), hit, re.IGNORECASE | re.UNICODE):
+            return k
+    return None          # unmappable - ignore this hit rather than crash
+
+
 def accept(tiers_hit: list[int]) -> str | None:
     """tiers_hit = tiers (ints only) of this record's distinct tiered hits.
     Returns the accepting clause name, or None to reject."""
@@ -226,7 +246,11 @@ def main():
             if not raw_hits:
                 continue
             # canonicalize case variants (vpn/Vpn/VPN) to lexicon spelling and dedup
-            hits = sorted({canon.get(h.lower(), h) for h in raw_hits})
+            mapped = {canonicalize(h, canon, keywords) for h in raw_hits}
+            mapped.discard(None)
+            if not mapped:
+                continue
+            hits = sorted(mapped)
             total_matched_any += 1
 
             tiers = [tier_of[h] for h in hits]
