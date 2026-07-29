@@ -201,6 +201,20 @@ def main():
               f"{torch.cuda.is_available()}", flush=True)
         if not torch.cuda.is_available():
             sys.exit("error: CUDA not available to torch - check the driver/wheel match")
+
+        # is_available() can return True even when CUDA cannot actually
+        # initialise (driver older than the wheel's CUDA). Prove the GPU works
+        # with a real op - otherwise device_map='auto' silently puts a 31B model
+        # on the CPU and 'generation' runs for hours with no output.
+        try:
+            _ = (torch.zeros(8, 8, device="cuda") @ torch.zeros(8, 8, device="cuda")).sum().item()
+            print(f"[hf] GPU op OK on {torch.cuda.get_device_name(0)}", flush=True)
+        except Exception as e:
+            sys.exit(f"error: torch cannot USE the GPU ({type(e).__name__}: {e})\n"
+                     f"       torch {torch.__version__} vs this node's driver.\n"
+                     f"       Install a torch built for the driver's CUDA, e.g.:\n"
+                     f"         pip install --no-user torch==2.6.0 "
+                     f"--index-url https://download.pytorch.org/whl/cu124")
         tok = AutoTokenizer.from_pretrained(args.model, trust_remote_code=True)
         if tok.pad_token is None:
             tok.pad_token = tok.eos_token
@@ -223,6 +237,26 @@ def main():
         if model is None:
             sys.exit("error: could not load the model.\n  " + "\n  ".join(errs))
         model.eval()
+
+        # Refuse to generate if any weights landed on cpu/disk: a 31B model
+        # doing that is ~1000x slower and looks exactly like a hang.
+        dmap = getattr(model, "hf_device_map", None)
+        if dmap:
+            offloaded = {k: v for k, v in dmap.items() if str(v) in ("cpu", "disk")}
+            print(f"[hf] device map: {len(dmap)} blocks, "
+                  f"{len(offloaded)} on cpu/disk", flush=True)
+            if offloaded:
+                sys.exit(f"error: {len(offloaded)} module(s) offloaded to cpu/disk "
+                         f"(e.g. {list(offloaded)[:3]}).\n"
+                         f"       Generation would take hours. Give the task more GPU "
+                         f"memory (--gres=gpu:2 with --tensor-parallel 2), or use a "
+                         f"smaller model.")
+        else:
+            dev = next(model.parameters()).device
+            print(f"[hf] weights on: {dev}", flush=True)
+            if dev.type != "cuda":
+                sys.exit(f"error: model is on {dev}, not cuda - generation would "
+                         f"take hours. Fix the torch/driver mismatch first.")
 
         prompts = build_prompts(tok)
         raws, bs = [], max(1, args.batch_size)
