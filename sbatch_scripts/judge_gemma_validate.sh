@@ -63,14 +63,32 @@ if [[ -f "$OUT_PREFIX.done" ]]; then
     exit 0
 fi
 
+# Dedicated env for vLLM (override: --export=ALL,ENV=other-env).
+# PYTHONNOUSERSITE stops ~/.local/lib/python3.10/site-packages leaking in -
+# that dir is SHARED by every python3.10 env on the account, so a stray
+# `pip install` there silently mixes environments (and broke this run once).
+ENV=${ENV:-vllm-env}
+export PYTHONNOUSERSITE=1
 source ~/anaconda3/etc/profile.d/conda.sh 2>/dev/null || source ~/miniconda3/etc/profile.d/conda.sh
-conda activate ocr-env
+conda activate "$ENV"
 
-if ! python -c "import vllm" 2>/dev/null; then
-    echo "ERROR: vLLM not installed. Run the pre-flight ONCE first:"
+echo "--- env diagnostics ---"
+echo "CONDA_PREFIX : ${CONDA_PREFIX:-unset}"
+echo "python       : $(which python)"
+python -c "import sys; print('sys.path[0:3] :', sys.path[:3])"
+python -c "import torch; print('torch        :', torch.__version__, '| cuda', torch.cuda.is_available())" || echo "torch import FAILED"
+echo "-----------------------"
+
+if ! python -c "import vllm" 2>/tmp/vllm_err.$$; then
+    echo "ERROR: vLLM not importable in conda env '$ENV'. The REAL error:"
+    sed 's/^/    /' /tmp/vllm_err.$$ | tail -15
+    rm -f /tmp/vllm_err.$$
+    echo
+    echo "Run the pre-flight ONCE first (it installs into the env, not ~/.local):"
     echo "  sbatch sbatch_scripts/setup_gemma_judge.sh"
     exit 1
 fi
+rm -f /tmp/vllm_err.$$
 
 echo "=== node $(hostname) | part $PART_IDX/$PARTS | $(date) ==="
 nvidia-smi --query-gpu=index,name --format=csv,noheader

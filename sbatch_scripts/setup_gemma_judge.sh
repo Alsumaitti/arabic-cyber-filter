@@ -34,21 +34,40 @@ INPUT=$BASE/validation_prompts.jsonl
 
 mkdir -p "$BASE/logs" "$BASE/out"
 
+# Dedicated env for vLLM (override: --export=ALL,ENV=other-env).
+# PYTHONNOUSERSITE stops ~/.local/lib/python3.10/site-packages leaking in -
+# that dir is SHARED by every python3.10 env on the account, so a stray
+# `pip install` there silently mixes environments (and broke this run once).
+ENV=${ENV:-vllm-env}
+export PYTHONNOUSERSITE=1
 source ~/anaconda3/etc/profile.d/conda.sh 2>/dev/null || source ~/miniconda3/etc/profile.d/conda.sh
-conda activate ocr-env
+conda activate "$ENV"
+
+echo "--- env diagnostics ---"
+echo "CONDA_PREFIX : ${CONDA_PREFIX:-unset}"
+echo "python       : $(which python)"
+python -c "import sys; print('sys.path[0:3] :', sys.path[:3])"
+python -c "import torch; print('torch        :', torch.__version__, '| cuda', torch.cuda.is_available())" || echo "torch import FAILED"
+echo "-----------------------"
 
 echo "=== node $(hostname) | $(date) ==="
 nvidia-smi --query-gpu=index,name,memory.total --format=csv || echo "!! no nvidia-smi"
 echo "python: $(which python)"
 
 # --- vLLM ------------------------------------------------------------------
-if python -c "import vllm" 2>/dev/null; then
+if python -c "import vllm" 2>/tmp/vllm_import_err.$$; then
     echo "vLLM present: $(python -c 'import vllm;print(vllm.__version__)')"
 else
-    echo "vLLM MISSING -> installing (one time) ..."
-    pip install vllm
+    echo "vLLM not importable. Error was:"
+    sed 's/^/    /' /tmp/vllm_import_err.$$ | tail -5
+    echo "installing into $CONDA_PREFIX (one time) ..."
+    # --no-user forces it INTO the env: a plain `pip install` can land in
+    # ~/.local/lib/python3.10/site-packages, which every python3.10 env on
+    # the account shares - that is what entangled ocr-env and vllm-env.
+    python -m pip install --no-user vllm
     python -c "import vllm;print('vLLM installed:',vllm.__version__)"
 fi
+rm -f /tmp/vllm_import_err.$$
 
 # --- model + 5-record smoke test ------------------------------------------
 echo
