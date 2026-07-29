@@ -3,7 +3,8 @@
 #SBATCH --output=/export/home/oalsumaitti/fanar-data/judge_bench/logs/preflight_%j.out
 #SBATCH --error=/export/home/oalsumaitti/fanar-data/judge_bench/logs/preflight_%j.err
 #SBATCH -p gpu-all
-#SBATCH -q normal
+#SBATCH -A H200_Intern
+#SBATCH -q H200_Intern_qos
 #SBATCH --gres=gpu:1
 #SBATCH --cpus-per-task=8
 #SBATCH --mem=64G

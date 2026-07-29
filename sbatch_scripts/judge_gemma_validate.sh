@@ -2,9 +2,10 @@
 #SBATCH --job-name=gemma-judge
 #SBATCH --output=/export/home/oalsumaitti/fanar-data/judge_bench/logs/%A_%a.out
 #SBATCH --error=/export/home/oalsumaitti/fanar-data/judge_bench/logs/%A_%a.err
-#SBATCH --array=0-3              # = PARTS-1 (one task per GPU)
+#SBATCH --array=0-1              # = PARTS-1; 2 H200s -> 2 tasks, 1 GPU each
 #SBATCH -p gpu-all
-#SBATCH -q normal
+#SBATCH -A H200_Intern
+#SBATCH -q H200_Intern_qos
 #SBATCH --gres=gpu:1
 #SBATCH --cpus-per-task=8
 #SBATCH --mem=64G
@@ -14,8 +15,10 @@
 # STEP 1 of the "can an open 31B model replace a frontier model as judge?"
 # study: judge the 1,992-record blind validation set with gemma-4-31B-it.
 #
-# Each array task loads the model on ITS OWN GPU and judges a contiguous slice
-# (one model per GPU beats tensor-parallel for a 31B - no cross-GPU traffic).
+# Each array task loads the model on ITS OWN GPU and judges a contiguous slice.
+# gemma-4-31B in bf16 is ~62GB and an H200 has 141GB, so the whole model fits
+# on ONE GPU - two independent tasks beat tensor-parallel across two (no
+# cross-GPU traffic, and a crash costs half the work instead of all of it).
 # PARTS must equal the array width.
 #
 # !! FIRST TIME:
@@ -35,7 +38,7 @@ MODEL=$HOME/models/gemma-4-31B-it
 INPUT=$BASE/validation_prompts.jsonl
 OUT_DIR=$BASE/out
 
-PARTS=${PARTS:-4}                # keep equal to the array width
+PARTS=${PARTS:-2}                # keep equal to the array width
 
 mkdir -p "$BASE/logs" "$OUT_DIR"
 
