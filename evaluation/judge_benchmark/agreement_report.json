@@ -1,0 +1,41 @@
+{
+ "n_gold": 1992,
+ "n_joined": 1992,
+ "n_unparsed": 0,
+ "raw_agreement": 0.6129518072289156,
+ "weighted_agreement": 0.7489458396054693,
+ "kappa_3way": 0.41942771084337344,
+ "binary_agreement": 0.8509036144578314,
+ "kappa_binary": 0.6512720156555774,
+ "per_class": {
+  "cyber": {
+   "precision": 0.5255183413078149,
+   "recall": 0.9924698795180723,
+   "f1": 0.6871741397288843,
+   "support": 664
+  },
+  "borderline": {
+   "precision": 0.5542857142857143,
+   "recall": 0.1460843373493976,
+   "f1": 0.23122765196662695,
+   "support": 664
+  },
+  "not_cyber": {
+   "precision": 0.8259325044404974,
+   "recall": 0.7003012048192772,
+   "f1": 0.7579462102689487,
+   "support": 664
+  }
+ },
+ "confusion": {
+  "cyber->cyber": 659,
+  "cyber->borderline": 5,
+  "cyber->not_cyber": 0,
+  "borderline->cyber": 469,
+  "borderline->borderline": 97,
+  "borderline->not_cyber": 98,
+  "not_cyber->cyber": 126,
+  "not_cyber->borderline": 73,
+  "not_cyber->not_cyber": 465
+ }
+}

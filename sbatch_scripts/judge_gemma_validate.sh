@@ -40,6 +40,22 @@ OUT_DIR=$BASE/out
 
 PARTS=${PARTS:-2}                # keep equal to the array width
 
+# FEWSHOT=1 runs the few-shot prompt variant and writes to a separate tag, so
+# the zero-shot and few-shot runs can be scored head-to-head:
+#   sbatch --export=ALL,ENV=gjudge,FEWSHOT=1 judge_gemma_validate.sh
+FEWSHOT=${FEWSHOT:-0}
+if [[ "$FEWSHOT" == "1" ]]; then
+    TAG=fs
+    FS_ARGS=(--few-shot "$BASE/fewshot_examples.json")
+    if [[ ! -f "$BASE/fewshot_examples.json" ]]; then
+        echo "ERROR: $BASE/fewshot_examples.json not found - scp it up first."
+        exit 1
+    fi
+else
+    TAG=val
+    FS_ARGS=()
+fi
+
 mkdir -p "$BASE/logs" "$OUT_DIR"
 
 if [[ ! -f "$INPUT" ]]; then
@@ -60,7 +76,7 @@ if [[ -n "${SLURM_ARRAY_TASK_MAX:-}" ]] && (( SLURM_ARRAY_TASK_MAX + 1 != PARTS 
     echo "############################################################"
 fi
 
-OUT_PREFIX=$OUT_DIR/gemma_val_P${PARTS}_p${PART_IDX}
+OUT_PREFIX=$OUT_DIR/gemma_${TAG}_P${PARTS}_p${PART_IDX}
 if [[ -f "$OUT_PREFIX.done" ]]; then
     echo "=== part $PART_IDX already done, skipping | $(date) ==="
     exit 0

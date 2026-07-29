@@ -121,7 +121,12 @@ def main():
     ap.add_argument("--parts", type=int, default=1)
     ap.add_argument("--part", type=int, default=0)
     ap.add_argument("--limit", type=int, default=None, help="smoke test: first N records")
-    ap.add_argument("--max-model-len", type=int, default=4096)
+    ap.add_argument("--few-shot", default=None,
+                    help="JSON list of {label,text,justification} exemplars, "
+                         "injected as prior chat turns. Fixes the zero-shot "
+                         "collapse of `borderline` into `cyber`.")
+    ap.add_argument("--max-model-len", type=int, default=8192,
+                    help="8192 by default: few-shot exemplars add ~2k tokens")
     ap.add_argument("--max-tokens", type=int, default=200)
     ap.add_argument("--gpu-mem-util", type=float, default=0.90)
     ap.add_argument("--tensor-parallel", type=int, default=1,
@@ -153,16 +158,37 @@ def main():
         print("nothing to do for this slice.")
         return
 
+    # few-shot exemplars become prior user/assistant turns, so the model sees
+    # the task DEMONSTRATED (in its own output format) rather than only described
+    shots = []
+    if args.few_shot:
+        ex = json.load(open(args.few_shot, encoding="utf-8"))
+        for e in ex:
+            shots.append({"role": "user",
+                          "content": USER_TMPL.format(text=e["text"])})
+            shots.append({"role": "assistant",
+                          "content": json.dumps(
+                              {"label": e["label"], "confidence": "high",
+                               "justification": e.get("justification", ""),
+                               "summary": e.get("summary", "")},
+                              ensure_ascii=False)})
+        import collections as _c
+        print(f"few-shot: {len(ex)} exemplars "
+              f"({dict(_c.Counter(e['label'] for e in ex))})", flush=True)
+
     def build_prompts(tok):
         out = []
         for r in rows:
-            msgs = [{"role": "system", "content": SYSTEM},
-                    {"role": "user", "content": USER_TMPL.format(text=r["text"])}]
+            msgs = [{"role": "system", "content": SYSTEM}] + shots + \
+                   [{"role": "user", "content": USER_TMPL.format(text=r["text"])}]
             try:
                 p = tok.apply_chat_template(msgs, tokenize=False,
                                             add_generation_prompt=True)
             except Exception:                  # model without a chat template
-                p = SYSTEM + "\n\n" + USER_TMPL.format(text=r["text"])
+                # keep the exemplars: dropping them here would silently make a
+                # "few-shot" run zero-shot and invalidate the comparison
+                flat = "".join(f"{m['content']}\n\n" for m in shots)
+                p = SYSTEM + "\n\n" + flat + USER_TMPL.format(text=r["text"])
             out.append(p)
         return out
 
