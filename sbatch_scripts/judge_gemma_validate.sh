@@ -3,9 +3,9 @@
 #SBATCH --output=/export/home/oalsumaitti/fanar-data/judge_bench/logs/%A_%a.out
 #SBATCH --error=/export/home/oalsumaitti/fanar-data/judge_bench/logs/%A_%a.err
 #SBATCH --array=0-1              # = PARTS-1; 2 H200s -> 2 tasks, 1 GPU each
-#SBATCH -p gpu-all
-#SBATCH -A H200_Intern
-#SBATCH -q H200_Intern_qos
+#SBATCH -p gpu-H200
+#SBATCH -A h200_intern
+#SBATCH -q h200_intern_qos
 #SBATCH --gres=gpu:1
 #SBATCH --cpus-per-task=8
 #SBATCH --mem=64G

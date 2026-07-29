@@ -2,9 +2,9 @@
 #SBATCH --job-name=gemma-judge-pre
 #SBATCH --output=/export/home/oalsumaitti/fanar-data/judge_bench/logs/preflight_%j.out
 #SBATCH --error=/export/home/oalsumaitti/fanar-data/judge_bench/logs/preflight_%j.err
-#SBATCH -p gpu-all
-#SBATCH -A H200_Intern
-#SBATCH -q H200_Intern_qos
+#SBATCH -p gpu-H200
+#SBATCH -A h200_intern
+#SBATCH -q h200_intern_qos
 #SBATCH --gres=gpu:1
 #SBATCH --cpus-per-task=8
 #SBATCH --mem=64G
@@ -23,8 +23,8 @@
 #   sbatch sbatch_scripts/setup_gemma_judge.sh
 #   tail -60 ~/fanar-data/judge_bench/logs/preflight_*.out
 #
-# NOTE: adjust -p gpu-all / --gres if your GPU partition is named differently
-#   sinfo -o "%P %G %N" | head        <- lists partitions and their GPUs
+# Allocation: partition gpu-H200, account h200_intern, qos h200_intern_qos
+#   (2 H200s granted; 1 GPU per task - a 31B in bf16 fits on one 141GB card)
 # ---------------------------------------------------------------------------
 set -euo pipefail
 
