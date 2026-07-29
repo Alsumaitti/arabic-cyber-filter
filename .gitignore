@@ -42,3 +42,6 @@ evaluation/scratch/
 # v3/v4 per-shard filter outputs (regenerable, GBs)
 output_v4/
 output_tiered/
+
+# judge-benchmark prompts (regenerable from the census with --seed)
+evaluation/judge_benchmark/validation_prompts.jsonl
