@@ -127,6 +127,12 @@ def main():
     ap.add_argument("--tensor-parallel", type=int, default=1,
                     help="GPUs per task (1 = one model per GPU, best throughput "
                          "for a 31B on H200)")
+    ap.add_argument("--backend", choices=("auto", "vllm", "transformers"), default="auto",
+                    help="auto = try vLLM, fall back to transformers. Use "
+                         "transformers when the cluster driver is older than the "
+                         "CUDA the vLLM wheels were built for.")
+    ap.add_argument("--batch-size", type=int, default=8,
+                    help="transformers backend only: prompts per forward pass")
     ap.add_argument("--no-done-marker", action="store_true")
     ap.add_argument("--verbose", action="store_true")
     args = ap.parse_args()
@@ -147,55 +153,120 @@ def main():
         print("nothing to do for this slice.")
         return
 
-    try:
+    def build_prompts(tok):
+        out = []
+        for r in rows:
+            msgs = [{"role": "system", "content": SYSTEM},
+                    {"role": "user", "content": USER_TMPL.format(text=r["text"])}]
+            try:
+                p = tok.apply_chat_template(msgs, tokenize=False,
+                                            add_generation_prompt=True)
+            except Exception:                  # model without a chat template
+                p = SYSTEM + "\n\n" + USER_TMPL.format(text=r["text"])
+            out.append(p)
+        return out
+
+    # ---------------------------------------------------------------- vLLM
+    def run_vllm():
         from vllm import LLM, SamplingParams
-    except ImportError:
-        sys.exit("error: vLLM not installed in this env.\n"
-                 "       conda activate <env> && pip install vllm\n"
-                 "       (run sbatch_scripts/setup_gemma_judge.sh once - it checks this)")
-
-    print(f"loading model: {args.model}", flush=True)
-    t0 = time.time()
-    llm = LLM(model=args.model,
-              max_model_len=args.max_model_len,
-              gpu_memory_utilization=args.gpu_mem_util,
-              tensor_parallel_size=args.tensor_parallel,
-              trust_remote_code=True)
-    print(f"model loaded in {time.time() - t0:.0f}s", flush=True)
-
-    # guided JSON if this vLLM build supports it; otherwise rely on the parser
-    sp_kwargs = dict(temperature=0.0, max_tokens=args.max_tokens)
-    try:
-        from vllm.sampling_params import GuidedDecodingParams
-        sp_kwargs["guided_decoding"] = GuidedDecodingParams(json=JSON_SCHEMA)
-        print("guided JSON decoding: ENABLED", flush=True)
-    except Exception as e:
-        print(f"guided JSON decoding unavailable ({e}); using tolerant parser", flush=True)
-    sampling = SamplingParams(**sp_kwargs)
-
-    tok = llm.get_tokenizer()
-    prompts = []
-    for r in rows:
-        msgs = [{"role": "system", "content": SYSTEM},
-                {"role": "user", "content": USER_TMPL.format(text=r["text"])}]
+        print(f"[vllm] loading model: {args.model}", flush=True)
+        t0 = time.time()
+        llm = LLM(model=args.model, max_model_len=args.max_model_len,
+                  gpu_memory_utilization=args.gpu_mem_util,
+                  tensor_parallel_size=args.tensor_parallel,
+                  trust_remote_code=True)
+        print(f"[vllm] model loaded in {time.time() - t0:.0f}s", flush=True)
+        sp_kwargs = dict(temperature=0.0, max_tokens=args.max_tokens)
         try:
-            p = tok.apply_chat_template(msgs, tokenize=False, add_generation_prompt=True)
-        except Exception:                      # model without a chat template
-            p = SYSTEM + "\n\n" + USER_TMPL.format(text=r["text"])
-        prompts.append(p)
+            from vllm.sampling_params import GuidedDecodingParams
+            sp_kwargs["guided_decoding"] = GuidedDecodingParams(json=JSON_SCHEMA)
+            print("[vllm] guided JSON decoding: ENABLED", flush=True)
+        except Exception as e:
+            print(f"[vllm] guided JSON unavailable ({e}); tolerant parser", flush=True)
+        prompts = build_prompts(llm.get_tokenizer())
+        print(f"[vllm] generating {len(prompts)} verdicts ...", flush=True)
+        t1 = time.time()
+        outs = llm.generate(prompts, SamplingParams(**sp_kwargs))
+        el = time.time() - t1
+        print(f"[vllm] done in {el/60:.1f} min ({len(prompts)/el:.1f} rec/s)", flush=True)
+        return [o.outputs[0].text.strip() for o in outs]
 
-    print(f"generating {len(prompts)} verdicts ...", flush=True)
-    t1 = time.time()
-    outs = llm.generate(prompts, sampling)
-    el = time.time() - t1
-    print(f"generation done in {el/60:.1f} min "
-          f"({len(prompts)/el:.1f} rec/s)", flush=True)
+    # -------------------------------------------------------- transformers
+    def run_transformers():
+        """Fallback that works with the SAME cu12x torch the OCR pipeline used.
+        Slower than vLLM but has no CUDA-13 wheel requirement."""
+        import torch
+        from transformers import AutoTokenizer
+        print(f"[hf] torch {torch.__version__} | cuda avail "
+              f"{torch.cuda.is_available()}", flush=True)
+        if not torch.cuda.is_available():
+            sys.exit("error: CUDA not available to torch - check the driver/wheel match")
+        tok = AutoTokenizer.from_pretrained(args.model, trust_remote_code=True)
+        if tok.pad_token is None:
+            tok.pad_token = tok.eos_token
+        tok.padding_side = "left"              # required for batched decoder gen
+
+        model = None
+        errs = []
+        for cls_name in ("AutoModelForCausalLM", "AutoModelForImageTextToText"):
+            try:
+                import transformers as tf
+                cls = getattr(tf, cls_name)
+                print(f"[hf] loading with {cls_name} ...", flush=True)
+                t0 = time.time()
+                model = cls.from_pretrained(args.model, dtype=torch.bfloat16,
+                                            device_map="auto", trust_remote_code=True)
+                print(f"[hf] loaded in {time.time() - t0:.0f}s via {cls_name}", flush=True)
+                break
+            except Exception as e:
+                errs.append(f"{cls_name}: {type(e).__name__}: {e}")
+        if model is None:
+            sys.exit("error: could not load the model.\n  " + "\n  ".join(errs))
+        model.eval()
+
+        prompts = build_prompts(tok)
+        raws, bs = [], max(1, args.batch_size)
+        t1 = time.time()
+        for i in range(0, len(prompts), bs):
+            batch = prompts[i:i + bs]
+            enc = tok(batch, return_tensors="pt", padding=True,
+                      truncation=True, max_length=args.max_model_len).to(model.device)
+            with torch.no_grad():
+                gen = model.generate(**enc, max_new_tokens=args.max_tokens,
+                                     do_sample=False,
+                                     pad_token_id=tok.pad_token_id)
+            for j in range(len(batch)):
+                new_tokens = gen[j][enc["input_ids"].shape[1]:]
+                raws.append(tok.decode(new_tokens, skip_special_tokens=True).strip())
+            done = min(i + bs, len(prompts))
+            el = time.time() - t1
+            print(f"[hf]   {done}/{len(prompts)} | {done/el:.2f} rec/s | "
+                  f"{el/60:.1f} min", flush=True)
+        return raws
+
+    backend = args.backend
+    if backend == "auto":
+        try:
+            import vllm  # noqa: F401
+            backend = "vllm"
+        except ImportError:
+            backend = "transformers"
+        print(f"backend auto-selected: {backend}", flush=True)
+
+    if backend == "vllm":
+        try:
+            raws = run_vllm()
+        except Exception as e:
+            print(f"\n!! vLLM failed ({type(e).__name__}: {e})", flush=True)
+            print("!! falling back to the transformers backend\n", flush=True)
+            raws = run_transformers()
+    else:
+        raws = run_transformers()
 
     out_path = args.out_prefix + ".jsonl"
     n_ok = n_bad = 0
     with open(out_path + ".tmp", "w", encoding="utf-8", newline="\n") as f:
-        for r, o in zip(rows, outs):
-            raw = o.outputs[0].text.strip()
+        for r, raw in zip(rows, raws):
             v = parse_verdict(raw)
             if v is None:
                 n_bad += 1
