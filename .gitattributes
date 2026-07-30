@@ -1,0 +1,15 @@
+# This repo is authored on Windows (core.autocrlf=true) but every script runs on
+# a Linux SLURM cluster. Without these rules a fresh clone gets CRLF shell
+# scripts, and bash fails with `$'\r': command not found` on the shebang line -
+# a confusing failure that looks like a cluster problem rather than a checkout
+# problem. Force LF for everything that is executed or parsed remotely.
+*.sh   text eol=lf
+*.py   text eol=lf
+
+# Keyword tier files are read line-by-line by the filters; a trailing \r would
+# be folded into the keyword itself and silently match nothing.
+*.txt  text eol=lf
+
+# Data files: newline-delimited JSON is parsed line-by-line on Linux.
+*.jsonl text eol=lf
+*.json  text eol=lf

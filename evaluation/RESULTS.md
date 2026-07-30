@@ -232,6 +232,131 @@ low-variance finding is the **within-pool miss rate of ~16%**, which is what a
 lexicon expansion should target; the single-number recall is a best estimate, not
 a tight bound.
 
+## Can an open 31B model replace the frontier judge?
+
+Full write-up: [`JUDGE_BENCHMARK.md`](JUDGE_BENCHMARK.md). Summary of the result,
+because it changes what the rest of this project can afford to do.
+
+Every number above cost frontier judgments. That is the expensive part of careful
+curation, and it is most expensive exactly where corpora most need curating — in
+low-resource languages with small budgets. So we tested whether a locally-hosted
+open model can take over, on a blind **1,992-record** stratified set (166 per cell
+over 3 labels × 4 keyword-hit buckets), gold labels never leaving the local
+machine, `gemma-4-31B-it` in bf16 on 2 × H200.
+
+| metric | zero-shot | few-shot (11 exemplars) | delta |
+|---|---|---|---|
+| raw agreement (3-way) | 0.613 | 0.614 | +0.002 |
+| corpus-weighted agreement | 0.749 | 0.752 | +0.004 |
+| Cohen κ (3-way) | 0.419 | 0.422 | +0.002 |
+| **binary agreement** | 0.851 | **0.852** | +0.001 |
+| **Cohen κ (binary)** | 0.651 | **0.654** | +0.003 |
+| `cyber` precision / recall | 0.526 / 0.992 | 0.526 / 0.992 | — |
+| `borderline` precision / recall | 0.554 / 0.146 | 0.564 / **0.146** | +0.010 / **0** |
+| `not_cyber` precision / recall | 0.826 / 0.700 | 0.825 / 0.705 | −0.001 / +0.005 |
+
+**Both arms parsed 1,992/1,992 verdicts with 0 unparsed**, so nothing here is a
+parsing artefact.
+
+### The prompting fix was tried, and it failed
+
+The few-shot arm was designed against the zero-shot failure mode: 5 of its 11
+exemplars are `borderline`, each carrying the frontier model's own justification,
+drawn from the census with all 1,992 evaluation ids excluded.
+
+It moved 3-way κ by **+0.003** and `borderline` recall by **exactly nothing** —
+while changing **483 of 1,992 (24.2%)** generated justifications and only
+**5 of 1,992 (0.3%)** labels. The model saw different input, reasoned differently
+in prose, and labelled the same. That rules out the boring explanation and makes
+this a **capability limit, not a prompting limit** — a stronger claim than "few-shot
+fixed it" would have been.
+
+### Where it breaks, precisely
+
+Confusion matrix, few-shot arm (rows = frontier gold, columns = gemma):
+
+| | cyber | borderline | not_cyber |
+|---|---|---|---|
+| **cyber** | **659** | 5 | 0 |
+| **borderline** | 468 | **97** | 99 |
+| **not_cyber** | 126 | 70 | **468** |
+
+Against a gold set that is 664/664/664 by construction, gemma predicts
+**1,253 / 172 / 567**. It assigns `cyber` to 63% where the truth is 33%, and
+effectively does not use the middle category.
+
+The error is one-directional and diagnosable. `cyber` recall is 0.992 and the
+`cyber → not_cyber` cell is **0** — across 664 documents, not one catastrophic
+miss. But of 664 `borderline` documents it called **468 `cyber`**. It is not
+confused about the domain; it is uncalibrated about *degree of topicality* —
+presence of the subject reads to it as aboutness.
+
+Agreement therefore **falls** as keyword density rises:
+
+| distinct keyword hits | n | zero-shot | few-shot |
+|---|---|---|---|
+| 1 | 498 | 0.691 | 0.693 |
+| 2 | 498 | 0.643 | 0.645 |
+| 3 | 498 | 0.594 | 0.594 |
+| 4+ | 498 | 0.524 | 0.526 |
+
+Backwards from the naive expectation, and it confirms the mechanism: more lexicon
+hits means more security vocabulary, which is the signal being over-read. The bias
+is worst on exactly the population a keyword filter hands to a judge.
+
+One caveat in the model's favour: the frontier census contains **zero
+high-confidence `borderline` labels** — every one is medium or low. Part of the
+3-way gap is irreducible disagreement about a genuinely fuzzy boundary, which caps
+achievable 3-way κ for *any* judge. It does not rescue 0.146 recall.
+
+### What it licenses — and the correction that makes it useful
+
+Collapsed to the binary decision the tiered rule actually makes:
+
+| | |
+|---|---|
+| agreement | **0.852** [95% CI 0.836–0.867] |
+| Cohen κ | **0.654** (substantial) |
+| cyber-ish P / R / F1 | 0.862 / 0.925 / 0.893 |
+| sensitivity / specificity | **0.9255** / **0.7048** |
+
+A biased classifier with a *measured* operating point still gives unbiased
+population estimates. Rogan–Gladen inverts the misclassification:
+
+`p_true = (p_obs − 0.2952) / 0.6303`
+
+Validated against the evaluation set itself: observed 0.7154 → corrected
+**0.667**, true gold **0.667**. Exact.
+
+**So: yes for accept/reject, no for graded relevance.** The recipe is a hybrid —
+spend frontier judgments once to build the reference standard and calibrate the
+open model, then run the open model at corpus scale with its bias corrected
+arithmetically. Do **not** rebuild the keyword tiers from open-model labels: tier
+assignment depends on each keyword's good/bad ratio, and a judge that inflates
+`cyber` by 1.9× would inflate every keyword's apparent quality, worst for the
+high-frequency keywords that matter most.
+
+### Next: this is how v4 gets measured
+
+The v4 corpus (**370,019** records from ~70M parquet rows) has no quality numbers
+yet — every figure above describes v2/v3 at 1M records. Judging 370k with a
+frontier model is unaffordable; judging a calibrated sample locally is not:
+
+```bash
+sbatch sbatch_scripts/sample_v4_for_judging.sh   # rule-stratified sample, CPU
+sbatch sbatch_scripts/judge_v4_sample.sh         # 2 H200s, resumable
+python evaluation/scripts/estimate_v4_precision.py \
+    --pred "evaluation/judge_benchmark/gemma_v4_P2_p*.jsonl" \
+    --meta evaluation/judge_benchmark/v4_sample_meta.jsonl --show-cal
+```
+
+The sample is stratified by **acceptance rule** rather than drawn uniformly, so the
+report gives both a corpus-level corrected precision (with sampling *and*
+calibration uncertainty propagated) and a per-rule breakdown showing which of the
+four doors into the corpus leaks. If one rule is clearly weaker with
+non-overlapping CIs, dropping it raises corpus precision with **no further
+judging**.
+
 ## Most common false-positive patterns (single-hit stratum)
 
 From the judged not_cyber records, the recurring causes were:

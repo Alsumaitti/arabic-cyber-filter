@@ -29,6 +29,7 @@ The resulting corpus is intended as a foundation for training and evaluating Ara
 - [Output schema](#output-schema)
 - [Corpus statistics](#corpus-statistics)
 - [Evaluation (LLM-as-judge)](#evaluation-llm-as-judge)
+  - [Can an open 31B model do the judging instead?](#can-an-open-31b-model-do-the-judging-instead)
 - [Usage](#usage)
   - [Local (single machine)](#local-single-machine)
   - [HPC cluster (SLURM array job)](#hpc-cluster-slurm-array-job)
@@ -60,6 +61,8 @@ Three principles drove the design:
 | Keyword lexicon size | **1,209** → **1,233** Arabic + English terms; **640** of them evidence-tiered |
 | Every record LLM-judged | **14,653 / 14,653** (full census, 100%) |
 | Measured precision (lenient) | v2 **0.388** → v3 **0.636**, keeping 77% of the strictly-cyber docs |
+| Scaled to the full crawl | v4: **370,019** records from **~70M** parquet rows (25 files, 112 GB) |
+| Open-model judge (31B, local) | binary κ **0.654**, sensitivity **0.926** — and **prompting does not close the graded-relevance gap** ([benchmark](evaluation/JUDGE_BENCHMARK.md)) |
 | Common Crawl dumps covered | **96** (from `CC-MAIN-2013-20` to `CC-MAIN-2024-18`) |
 | Final outputs | `cyber_arabic_v3_ALL.{json,csv}` (~78 MB) + `_judged.json` (verdict per record) |
 | Wall-clock strategy | 100 parallel SLURM tasks (~1–2 min each) instead of hours sequentially |
@@ -294,6 +297,58 @@ python scripts/llm_judge_api.py \
     --out-prefix result/cyber_arabic_ALL_judged \
     --limit 20                              # smoke-test on 20 records first; drop --limit for the full run
 ```
+
+### Can an open 31B model do the judging instead?
+
+Frontier judging is what makes careful curation expensive, and that cost falls
+hardest on exactly the languages whose corpora most need curating. So we tested
+the substitution directly: **`gemma-4-31B-it` on local H200s against the
+frontier census**, on a blind 1,992-record stratified set (gold labels never left
+the local machine). Full write-up: **[`evaluation/JUDGE_BENCHMARK.md`](evaluation/JUDGE_BENCHMARK.md)**.
+
+| | zero-shot | few-shot (11 exemplars) |
+|---|---|---|
+| Cohen κ, 3-way | 0.419 | **0.422** |
+| Cohen κ, binary (cyber-ish vs not) | 0.651 | **0.654** |
+| `cyber` recall | 0.992 | 0.992 |
+| `borderline` recall | 0.146 | **0.146** |
+
+**The answer is split, and the split is the interesting part.**
+
+For the **binary** accept/reject decision — the decision the tiered filter
+actually makes — the open model is a usable instrument: κ 0.654, 85.2%
+agreement, sensitivity 0.926, and across 664 truly-cyber documents it never once
+returned `not_cyber`.
+
+For **graded** relevance it fails, and *the failure is not fixable by prompting*.
+It cannot separate "about cybersecurity" from "mentions cybersecurity", calling
+468 of 664 `borderline` documents `cyber`. Eleven worked exemplars aimed squarely
+at that weak class moved κ by **+0.003** and `borderline` recall by **exactly
+zero** — while changing 24.2% of the generated justifications, which proves the
+exemplars were applied and simply did not help. Agreement also *falls* as keyword
+density rises (0.693 at one hit → 0.526 at four), because more security
+vocabulary is precisely the signal the model over-reads.
+
+What makes this usable anyway: a biased classifier with a *measured* operating
+point still yields unbiased population estimates. Rogan–Gladen inverts it —
+`p_true = (p_obs − 0.295) / 0.630` — which reproduces the validation set's true
+prevalence exactly (0.667 vs 0.667). So the practical recipe is a **hybrid**:
+spend frontier judgments once to build the reference standard and calibrate the
+open model, then let the open model run at corpus scale with its bias corrected
+arithmetically. That is what measures v4:
+
+```bash
+sbatch sbatch_scripts/sample_v4_for_judging.sh   # rule-stratified sample (CPU)
+sbatch sbatch_scripts/judge_v4_sample.sh         # judge on 2 H200s, resumable
+python evaluation/scripts/estimate_v4_precision.py \
+    --pred "evaluation/judge_benchmark/gemma_v4_P2_p*.jsonl" \
+    --meta evaluation/judge_benchmark/v4_sample_meta.jsonl --show-cal
+```
+
+Sampling is stratified by **acceptance rule** (`tier1_hit`, `two_tier2_hits`,
+`three_tier3_hits`, `four_plus_hits`) so the estimate also says *which door into
+the corpus leaks* — and dropping a rule that proves clearly weaker raises corpus
+precision with no further judging at all.
 
 ## Usage
 
