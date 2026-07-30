@@ -336,11 +336,22 @@ assignment depends on each keyword's good/bad ratio, and a judge that inflates
 `cyber` by 1.9× would inflate every keyword's apparent quality, worst for the
 high-frequency keywords that matter most.
 
-### Next: this is how v4 gets measured
+### v4 measured — the tiered rule survives a 70× larger crawl
 
-The v4 corpus (**370,019** records from ~70M parquet rows) has no quality numbers
-yet — every figure above describes v2/v3 at 1M records. Judging 370k with a
-frontier model is unaffordable; judging a calibrated sample locally is not:
+**The headline: corpus precision at v4 scale is 0.715 [95% CI 0.679–0.749], up
+from 0.636 at v3 scale.** Widening to 0.682–0.754 once the calibration
+uncertainty in sens/spec is propagated too. That implies **~264,600 genuinely
+cybersecurity-related records** [251,300–277,200] out of 370,019.
+
+This is the measurement the project was missing. Every other number in this file
+describes v2/v3 at 1M records; v4 applies the same tiered rule to ~70M parquet
+rows, and there was no evidence the rule's precision survived that change of
+distribution. It did — and modestly improved. Both figures are "lenient"
+(`cyber` + `borderline` vs `not_cyber`), so they are directly comparable.
+
+The estimate comes from 1,585 records judged by the local 31B model, with its
+measured bias inverted (Rogan–Gladen). Judging 370k with a frontier model was
+never affordable; judging a calibrated sample locally cost two GPU-hours.
 
 ```bash
 sbatch sbatch_scripts/sample_v4_for_judging.sh   # rule-stratified sample, CPU
@@ -382,6 +393,47 @@ rules cannot support any conclusion, and
 [`estimate_v4_precision.py`](scripts/estimate_v4_precision.py) excludes strata
 below 1% of the corpus from the per-rule verdict — otherwise a 14-record stratum
 could be labelled "the weakest rule" and prompt a change that affects nothing.
+
+#### The two doors are not equal, and the fix is a threshold, not a deletion
+
+| acceptance rule | records | corrected precision | 95% CI |
+|---|---|---|---|
+| `tier1_hit` | 192,583 | **0.837** | 0.791–0.878 |
+| `two_tier2_hits` | 177,351 | **0.583** | 0.528–0.635 |
+
+A 25-point gap with non-overlapping intervals — `two_tier2_hits` is doing most of
+the damage. The obvious response is to delete it, and that is exactly the trap:
+those 177,351 records contain roughly **103,000 genuine** ones, so dropping the
+rule buys +12pp precision by discarding **39% of the corpus's good content**.
+For pretraining data that is usually the wrong trade.
+
+Because every sampled record carries its full `tiers_found` list, alternative
+rules can be evaluated on the judging already paid for — no new inference.
+[`tune_v4_rule.py`](scripts/tune_v4_rule.py) sweeps the frontier (only *stricter*
+rules are measurable; records the current rule rejected were never sampled):
+
+| candidate rule | records kept | precision | genuine kept | share of genuine |
+|---|---|---|---|---|
+| current (`t≤2 ≥ 2`) | 370,019 | 0.715 | 264,645 | 100% |
+| **`t1≥1` or `t≤2 ≥ 3`** | **264,706** | **0.816** | **215,924** | **81.6%** |
+| `t1≥1` or `t≤2 ≥ 4` | 223,324 | 0.850 | 189,910 | 71.8% |
+| `t1≥1` or (`t≤2 ≥ 2` and `≥4 tiered`) | 226,161 | 0.852 | 192,708 | 72.8% |
+| `t1≥1` only (drop rule 2) | 192,583 | 0.837 | 161,163 | 60.9% |
+
+**Raising the tier-2 threshold from 2 hits to 3 is the sweet spot**: +10pp
+precision (0.715 → 0.816) while retaining 81.6% of the genuine content — strictly
+better than deleting the rule, which costs far more recall for less precision
+than several of the tightenings above.
+
+Two cautions on reading that table. The current rule scores recall 1.000 *by
+construction* (it defines the denominator), so its F1 is not comparable to the
+alternatives. And a Rogan–Gladen precision of exactly 1.000 is the estimator
+clamped at its ceiling, not measured perfection — read the CI instead.
+
+Whether to adopt the tightening depends on use. For **pretraining**, keep the
+current rule: noise is tolerable and 264,645 genuine records beat 215,924. For an
+**evaluation or benchmark set**, take `t≤2 ≥ 3` — precision is what costs you
+there.
 
 ## Most common false-positive patterns (single-hit stratum)
 

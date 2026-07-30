@@ -1,0 +1,81 @@
+{
+ "total_population": 370019,
+ "n_judged": 1585,
+ "n_missing": 0,
+ "n_unparsed": 0,
+ "sens": 0.9255,
+ "spec": 0.7048,
+ "raw_accept_unweighted": 0.7526813880126183,
+ "accept_weighted": 0.7460028016579328,
+ "n_eff": 1498.1480751631962,
+ "precision_corrected": 0.7152194219545182,
+ "precision_ci": [
+  0.6792800172165733,
+  0.74916233302442
+ ],
+ "implied_cyber_records": 264645,
+ "per_rule": {
+  "tier1_hit": {
+   "population": 192583,
+   "n": 750,
+   "raw": 0.8226666666666667,
+   "corrected": 0.8368501771643133,
+   "ci": [
+    0.7909038590130576,
+    0.8775789187127957
+   ],
+   "material": true,
+   "est_true_cyber": 161163
+  },
+  "two_tier2_hits": {
+   "population": 177351,
+   "n": 750,
+   "raw": 0.6626666666666666,
+   "corrected": 0.5830028028980908,
+   "ci": [
+    0.528123153506467,
+    0.6352521037544322
+   ],
+   "material": true,
+   "est_true_cyber": 103396
+  },
+  "three_tier3_hits": {
+   "population": 71,
+   "n": 71,
+   "raw": 0.9295774647887324,
+   "corrected": 1.0,
+   "ci": [
+    0.8730888185420889,
+    1.0
+   ],
+   "material": false,
+   "est_true_cyber": 71
+  },
+  "four_plus_hits": {
+   "population": 14,
+   "n": 14,
+   "raw": 0.9285714285714286,
+   "corrected": 1.0,
+   "ci": [
+    0.6189232182459493,
+    1.0
+   ],
+   "material": false,
+   "est_true_cyber": 14
+  }
+ },
+ "calibration": {
+  "sens_ci": [
+   0.9100646507867203,
+   0.9383845942286027
+  ],
+  "spec_ci": [
+   0.6690269315138717,
+   0.7382552743265551
+  ],
+  "range": [
+   0.6822025875652825,
+   0.7536354582903035
+  ]
+ }
+}

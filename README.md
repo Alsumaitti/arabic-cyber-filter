@@ -62,6 +62,7 @@ Three principles drove the design:
 | Every record LLM-judged | **14,653 / 14,653** (full census, 100%) |
 | Measured precision (lenient) | v2 **0.388** → v3 **0.636**, keeping 77% of the strictly-cyber docs |
 | Scaled to the full crawl | v4: **370,019** records from **~70M** parquet rows (25 files, 112 GB) |
+| v4 measured precision | **0.715** [95% CI 0.679–0.749] → **~264,600 genuine** records; the tiered rule *improved* at 70× scale (v3 0.636) |
 | Open-model judge (31B, local) | binary κ **0.654**, sensitivity **0.926** — and **prompting does not close the graded-relevance gap** ([benchmark](evaluation/JUDGE_BENCHMARK.md)) |
 | Common Crawl dumps covered | **96** (from `CC-MAIN-2013-20` to `CC-MAIN-2024-18`) |
 | Final outputs | `cyber_arabic_v3_ALL.{json,csv}` (~78 MB) + `_judged.json` (verdict per record) |
