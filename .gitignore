@@ -45,3 +45,6 @@ output_tiered/
 
 # judge-benchmark prompts (regenerable from the census with --seed)
 evaluation/judge_benchmark/validation_prompts.jsonl
+
+# HF dataset build output (regenerate with publish/build_hf_dataset.py)
+publish/hf_build/
