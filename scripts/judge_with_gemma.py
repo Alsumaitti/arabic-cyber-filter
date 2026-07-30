@@ -136,8 +136,11 @@ def main():
                     help="auto = try vLLM, fall back to transformers. Use "
                          "transformers when the cluster driver is older than the "
                          "CUDA the vLLM wheels were built for.")
-    ap.add_argument("--batch-size", type=int, default=8,
-                    help="transformers backend only: prompts per forward pass")
+    ap.add_argument("--batch-size", type=int, default=32,
+                    help="transformers backend only: prompts per forward pass. "
+                         "Measured 0.63 rec/s at batch 8 on an H200 - a 31B in "
+                         "bf16 is ~62GB of a 141GB card, so the rest was idle KV "
+                         "cache. Raise until it OOMs, then back off.")
     ap.add_argument("--no-done-marker", action="store_true")
     ap.add_argument("--verbose", action="store_true")
     args = ap.parse_args()
@@ -285,23 +288,37 @@ def main():
                          f"take hours. Fix the torch/driver mismatch first.")
 
         prompts = build_prompts(tok)
-        raws, bs = [], max(1, args.batch_size)
+        bs = max(1, args.batch_size)
+
+        # LENGTH-SORTED BATCHING.
+        # Batching in input order pads every batch to its longest member, and
+        # these prompts vary a lot (a few hundred to several thousand tokens), so
+        # a short document sharing a batch with a long one is padded to the long
+        # one and its compute is thrown away. Grouping similar lengths together
+        # collapses that waste. Results are written back to their original
+        # positions, so output order is unchanged and the join by id is unaffected.
+        order = sorted(range(len(prompts)), key=lambda i: len(prompts[i]))
+        raws = [None] * len(prompts)
+
         t1 = time.time()
-        for i in range(0, len(prompts), bs):
-            batch = prompts[i:i + bs]
+        done = 0
+        for i in range(0, len(order), bs):
+            idxs = order[i:i + bs]
+            batch = [prompts[k] for k in idxs]
             enc = tok(batch, return_tensors="pt", padding=True,
                       truncation=True, max_length=args.max_model_len).to(model.device)
             with torch.no_grad():
                 gen = model.generate(**enc, max_new_tokens=args.max_tokens,
                                      do_sample=False,
                                      pad_token_id=tok.pad_token_id)
-            for j in range(len(batch)):
+            for j, k in enumerate(idxs):
                 new_tokens = gen[j][enc["input_ids"].shape[1]:]
-                raws.append(tok.decode(new_tokens, skip_special_tokens=True).strip())
-            done = min(i + bs, len(prompts))
+                raws[k] = tok.decode(new_tokens, skip_special_tokens=True).strip()
+            done += len(idxs)
             el = time.time() - t1
+            eta = (len(prompts) - done) / (done / el) / 60 if done else 0
             print(f"[hf]   {done}/{len(prompts)} | {done/el:.2f} rec/s | "
-                  f"{el/60:.1f} min", flush=True)
+                  f"{el/60:.1f} min | ETA {eta:.0f} min", flush=True)
         return raws
 
     backend = args.backend

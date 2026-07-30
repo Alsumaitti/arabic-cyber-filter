@@ -76,6 +76,15 @@ def main():
     ap.add_argument("--spec", type=float, default=DEF_SPEC)
     ap.add_argument("--keep-all", action="store_true",
                     help="write every record with its verdict instead of only positives")
+    ap.add_argument("--keep-unjudged", action="store_true",
+                    help="pass records with no verdict through unchanged instead of "
+                         "dropping them. REQUIRED for stratified judging (judging "
+                         "only the weak rule) - without it the unjudged clean "
+                         "stratum would be silently deleted.")
+    ap.add_argument("--unjudged-precision", type=float, default=None,
+                    help="prior precision of the unjudged stratum (e.g. 0.837 for "
+                         "tier1_hit), so a combined figure can be reported. Without "
+                         "it the unjudged records are passed through unmeasured.")
     args = ap.parse_args()
 
     files = sorted(glob.glob(os.path.expanduser(args.pred)))
@@ -115,6 +124,9 @@ def main():
             v = pred.get(rid)
             if v is None:
                 missing += 1
+                if args.keep_unjudged:
+                    out.write(json.dumps(r, ensure_ascii=False) + "\n")
+                    kept += 1
                 continue
             lab = v.get("judge_label")
             if lab not in ("cyber", "borderline", "not_cyber"):
@@ -133,11 +145,15 @@ def main():
                 rules_kept[rule] += 1
 
     print(f"corpus records : {total:,}")
-    if missing:
+    if missing and args.keep_unjudged:
+        print(f"   {missing:,} records ({100*missing/total:.2f}%) had no verdict and "
+              f"were PASSED THROUGH unchanged\n   (stratified judging - expected).")
+    elif missing:
         print(f"!! {missing:,} records ({100*missing/total:.2f}%) have no verdict - "
               f"the judging array is incomplete.\n"
               f"   Finish it before quoting these numbers; every unjudged record "
-              f"was DROPPED from the output.")
+              f"was DROPPED. If you judged only one stratum on purpose, rerun with "
+              f"--keep-unjudged.")
     if unparsed:
         print(f"!! {unparsed:,} unparsed verdicts - dropped")
 
@@ -170,6 +186,23 @@ def main():
     print(f"    (interval is calibration uncertainty only - sens/spec from n=1,992)")
     print(f"  genuine records kept   : {pi*judged*args.sens:,.0f} of "
           f"{pi*judged:,.0f} in v4  ({args.sens:.1%} of them)")
+
+    if args.keep_unjudged and missing:
+        if args.unjudged_precision is None:
+            print(f"\n  {missing:,} unjudged records were kept but NOT measured, so the")
+            print(f"  precision above describes only the judged part. Pass")
+            print(f"  --unjudged-precision (e.g. 0.837 for tier1_hit) for a combined figure.")
+        else:
+            up = args.unjudged_precision
+            comb_n = kept
+            comb_gen = pi * judged * args.sens + up * missing
+            print(f"\n=== COMBINED (judged + passed-through) ===")
+            print(f"  unjudged kept          : {missing:,} at assumed precision {up:.3f}")
+            print(f"  total records          : {comb_n:,}")
+            print(f"  COMBINED PRECISION     : {comb_gen/comb_n:.4f}")
+            print(f"  genuine records        : {comb_gen:,.0f}")
+            print(f"  (the unjudged term is an ASSUMPTION carried in from the sample,")
+            print(f"   not a measurement of these specific records.)")
 
     if rules_in:
         print(f"\n{'accept rule':<20}{'v4':>10}{'v5':>10}{'kept':>8}")

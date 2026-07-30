@@ -48,6 +48,12 @@ def main():
     ap.add_argument("--text-chars", type=int, default=6000,
                     help="truncate text sent to the judge (prompt budget)")
     ap.add_argument("--min-chars", type=int, default=200)
+    ap.add_argument("--only-rule", default=None,
+                    help="judge only this acceptance rule, e.g. two_tier2_hits. "
+                         "Targeting the weak stratum costs half the GPU time of a "
+                         "full run and retains MORE genuine content, because the "
+                         "already-clean tier1_hit records are never exposed to the "
+                         "judge's 7.5%% false-negative rate.")
     ap.add_argument("--progress-every", type=int, default=50_000)
     args = ap.parse_args()
 
@@ -90,6 +96,8 @@ def main():
             seen.add(rid)
 
             rule = r.get("accept_rule") or "unknown"
+            if args.only_rule and rule != args.only_rule:
+                continue
             rules[rule] += 1
             pf.write(json.dumps({"id": rid, "text": text[: args.text_chars]},
                                 ensure_ascii=False) + "\n")

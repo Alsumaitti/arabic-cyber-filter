@@ -2,7 +2,7 @@
 #SBATCH --job-name=judge-v4-full
 #SBATCH --output=/export/home/oalsumaitti/fanar-data/judge_bench/logs/v4full_%A_%a.out
 #SBATCH --error=/export/home/oalsumaitti/fanar-data/judge_bench/logs/v4full_%A_%a.err
-#SBATCH --array=0-7              # = PARTS-1. Only 2 run at once on 2 GPUs;
+#SBATCH --array=0-31             # = PARTS-1. Only 2 run at once on 2 GPUs;
                                  # the rest queue and drain in waves.
 #SBATCH -p gpu-H200
 #SBATCH -A h200_intern
@@ -25,19 +25,37 @@
 # !! FIRST:
 #      sbatch sbatch_scripts/prepare_v4_full.sh      # writes v4_full_prompts.jsonl
 #
-# SIZING THE ARRAY - do this, do not guess:
-#      grep 'rec/s' ~/fanar-data/judge_bench/logs/v4_*.out | tail -3
-#   Each slice must fit in 8h (28,800s). With N records and R rec/s per GPU:
-#      PARTS >= N / (28800 * R)
-#   e.g. 370,000 records at 2 rec/s -> PARTS >= 6.4, so PARTS=8 with headroom.
-#   Total wall clock is roughly (PARTS/2) * slice_time, since 2 GPUs run at once.
+# SIZING - MEASURED, not guessed:
+#   0.63 rec/s per GPU at batch size 8 (792 records in 21.0 min).
+#   At that rate the full corpus is 163 GPU-hours = ~3.4 DAYS on 2 GPUs.
+#      max per 8h slice = 28800 * 0.63 = 18,144 records -> PARTS >= 20.4
+#      PARTS=32 -> 11,563 rec/slice = 5.1 h/slice, comfortable margin
+#   Re-measure after changing BATCH and resize accordingly:
+#      grep 'rec/s' logs/v4full_*.out | tail -3
+#
+# THROUGHPUT: batch size now defaults to 32, not 8. A 31B in bf16 is ~62GB of a
+# 141GB card, so batch 8 left most of the KV cache idle. Prompts are also
+# length-sorted now, which removes the padding waste of mixing a 300-token and a
+# 3000-token document in one batch. Both should raise 0.63 rec/s substantially -
+# measure before committing to an array width.
+#      sbatch --export=ALL,BATCH=48 ...      # raise until it OOMs, then back off
 #
 # RESUMABLE AND SAFE TO OVERSHOOT: every finished slice writes a .done marker and
 # is skipped on resubmit. If a slice times out, raise PARTS and resubmit - the
 # completed ones are not redone. Prefer too many parts over too few.
 #
-#   sbatch --export=ALL,PARTS=8  --array=0-7  sbatch_scripts/judge_v4_full.sh
-#   sbatch --export=ALL,PARTS=16 --array=0-15 sbatch_scripts/judge_v4_full.sh
+#   sbatch sbatch_scripts/judge_v4_full.sh                          # PARTS=32
+#   sbatch --export=ALL,PARTS=48 --array=0-47 sbatch_scripts/judge_v4_full.sh
+#
+# CHEAPER ALTERNATIVE - judge only the weak stratum:
+#   two_tier2_hits (177,351 records, precision 0.583) causes nearly all the
+#   error; tier1_hit (192,583) is already 0.837. Judging ONLY the weak one costs
+#   HALF the GPU time and retains MORE genuine content than a full run, because
+#   the already-clean records never face the judge's 7.5% false-negative rate:
+#       full run        275,984 records, precision 0.887, genuine 244,854, 163 GPU-h
+#       weak-only       310,192 records, precision 0.828, genuine 256,970,  78 GPU-h
+#   To do that, prepare with --only-rule two_tier2_hits and apply with
+#   --keep-unjudged --unjudged-precision 0.837.
 # ---------------------------------------------------------------------------
 set -euo pipefail
 
@@ -47,7 +65,8 @@ MODEL=$HOME/models/gemma-4-31B-it
 INPUT=$BASE/v4_full_prompts.jsonl
 OUT_DIR=$BASE/out_full
 
-PARTS=${PARTS:-8}                # keep equal to the array width
+PARTS=${PARTS:-32}               # keep equal to the array width
+BATCH=${BATCH:-32}               # prompts per forward pass; raise if VRAM allows
 
 mkdir -p "$BASE/logs" "$OUT_DIR"
 
@@ -103,6 +122,7 @@ python "$SCRIPT" \
     --model "$MODEL" \
     --parts "$PARTS" --part "$PART_IDX" \
     --backend "$BACKEND" \
+    --batch-size "$BATCH" \
     --out-prefix "$OUT_PREFIX"
 
 echo "=== done part $PART_IDX | $(date) ==="
