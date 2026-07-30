@@ -140,19 +140,34 @@ def main():
     print(f"corpus represented: {total_pop:,}")
 
     # --- per-rule ----------------------------------------------------------
+    # A stratum only supports a conclusion if it is BOTH a material share of the
+    # corpus and judged often enough for a usable interval. In v4 two of the four
+    # acceptance rules admit ~85 records total, so they are fully censused
+    # (weight 1.0) and cannot be compared against strata of ~190k - without this
+    # guard a 14-record stratum could be declared "the weakest rule" and prompt a
+    # drop that changes nothing.
+    min_pop = max(0.01 * total_pop, 100)
+    min_n = 30
+
     print(f"\n{'accept rule':<20}{'pop':>10}{'n':>7}{'raw':>8}{'corrected':>11}"
-          f"{'95% CI':>18}")
-    print("-" * 74)
+          f"{'95% CI':>18}  note")
+    print("-" * 82)
     rows = {}
     for rule in sorted(strata, key=lambda r: -strata[r]["pop"]):
         s = strata[rule]
         p, lo, hi = wilson(s["pos"], s["n"])
         c, clo, chi = (rogan_gladen(x, args.sens, args.spec) for x in (p, lo, hi))
+        material = s["pop"] >= min_pop and s["n"] >= min_n
+        note = ""
+        if s["pop"] <= s["n"]:
+            note = "fully censused"
+        elif not material:
+            note = "too small to compare"
         rows[rule] = {"population": s["pop"], "n": s["n"], "raw": p,
-                      "corrected": c, "ci": [clo, chi],
+                      "corrected": c, "ci": [clo, chi], "material": material,
                       "est_true_cyber": round(c * s["pop"])}
         print(f"{rule:<20}{s['pop']:>10,}{s['n']:>7,}{p:>8.3f}{c:>11.3f}"
-              f"{f'{clo:.3f}-{chi:.3f}':>18}")
+              f"{f'{clo:.3f}-{chi:.3f}':>18}  {note}")
 
     # --- corpus level, inverse-probability weighted -------------------------
     w_pos = sum(s["pos"] * s["weight"] for s in strata.values())
@@ -201,14 +216,28 @@ def main():
         print(f"    precision range {min(worst,best):.4f}-{max(worst,best):.4f}")
 
     # --- what it implies for the filter ------------------------------------
-    weakest = min(rows, key=lambda r: rows[r]["corrected"])
-    strongest = max(rows, key=lambda r: rows[r]["corrected"])
     print(f"\n=== WHAT TO DO WITH THIS ===")
-    print(f"  strongest rule: {strongest} ({rows[strongest]['corrected']:.3f})")
-    print(f"  weakest rule  : {weakest} ({rows[weakest]['corrected']:.3f}, "
-          f"{rows[weakest]['population']:,} records)")
-    spread = rows[strongest]["corrected"] - rows[weakest]["corrected"]
-    if spread > 0.15 and rows[weakest]["ci"][1] < rows[strongest]["ci"][0]:
+    mat = [r for r in rows if rows[r]["material"]]
+    tiny = [r for r in rows if not rows[r]["material"]]
+    if tiny:
+        tiny_pop = sum(rows[r]["population"] for r in tiny)
+        print(f"  ignoring {len(tiny)} immaterial rule(s) ({', '.join(sorted(tiny))}) "
+              f"= {tiny_pop:,} records,\n  {100*tiny_pop/total_pop:.3f}% of the corpus "
+              f"- too few to support a conclusion either way.")
+    if len(mat) < 2:
+        print(f"  only {len(mat)} rule carries material volume, so there is no "
+              f"per-rule comparison\n  to make. The corpus-level number above is "
+              f"the result.")
+        weakest = strongest = (mat or list(rows))[0]
+        spread = 0.0
+    else:
+        weakest = min(mat, key=lambda r: rows[r]["corrected"])
+        strongest = max(mat, key=lambda r: rows[r]["corrected"])
+        print(f"  strongest rule: {strongest} ({rows[strongest]['corrected']:.3f})")
+        print(f"  weakest rule  : {weakest} ({rows[weakest]['corrected']:.3f}, "
+              f"{rows[weakest]['population']:,} records)")
+        spread = rows[strongest]["corrected"] - rows[weakest]["corrected"]
+    if len(mat) >= 2 and spread > 0.15 and rows[weakest]["ci"][1] < rows[strongest]["ci"][0]:
         kept = total_pop - rows[weakest]["population"]
         num = corr * total_pop - rows[weakest]["corrected"] * rows[weakest]["population"]
         print(f"  -> the gap is {spread:.3f} and the CIs do not overlap, so dropping "

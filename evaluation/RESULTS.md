@@ -357,6 +357,32 @@ four doors into the corpus leaks. If one rule is clearly weaker with
 non-overlapping CIs, dropping it raises corpus precision with **no further
 judging**.
 
+#### The tiered rule is two doors at scale, not four
+
+Sampling revealed the v4 corpus composition, which is a result in its own right:
+
+| acceptance rule | records | share of corpus |
+|---|---|---|
+| `tier1_hit` | 192,583 | 52.05% |
+| `two_tier2_hits` | 177,351 | 47.93% |
+| `three_tier3_hits` | 71 | 0.019% |
+| `four_plus_hits` | 14 | 0.004% |
+
+The third and fourth rules admitted **85 records out of 370,019** — small enough
+to be judged exhaustively rather than sampled. This is not a bug, it follows from
+the rule ordering: reaching `three_tier3_hits` requires a document with *no*
+tier-1 keyword, *at most one* tier-≤2 hit, and *three or more* tier-≤3 hits.
+Against 136 tier-1 and 295 tier-2 keywords, almost nothing threads that needle.
+
+The practical consequence is that v4's precision is determined almost entirely by
+two rules of near-equal volume, so equal allocation across strata is close to
+optimal and the effective sample size stays high (**n_eff ≈ 1,498** from 1,585
+judged records). The consequence for interpretation is that the two vestigial
+rules cannot support any conclusion, and
+[`estimate_v4_precision.py`](scripts/estimate_v4_precision.py) excludes strata
+below 1% of the corpus from the per-rule verdict — otherwise a 14-record stratum
+could be labelled "the weakest rule" and prompt a change that affects nothing.
+
 ## Most common false-positive patterns (single-hit stratum)
 
 From the judged not_cyber records, the recurring causes were:
