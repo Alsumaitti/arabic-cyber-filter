@@ -23,7 +23,7 @@
 #
 # !! FIRST TIME:
 #      mkdir -p ~/fanar-data/judge_bench/{logs,out}
-#      sbatch sbatch_scripts/setup_gemma_judge.sh     # installs vLLM, smoke test
+#      sbatch sbatch_scripts/setup_gemma_judge.sh     # verifies GPU, smoke test
 #
 # RESUMABLE: finished slices leave a .done marker; just resubmit this file.
 #
@@ -82,11 +82,11 @@ if [[ -f "$OUT_PREFIX.done" ]]; then
     exit 0
 fi
 
-# Dedicated env for vLLM (override: --export=ALL,ENV=other-env).
+# Dedicated env (override: --export=ALL,ENV=other-env).
 # PYTHONNOUSERSITE stops ~/.local/lib/python3.10/site-packages leaking in -
 # that dir is SHARED by every python3.10 env on the account, so a stray
 # `pip install` there silently mixes environments (and broke this run once).
-ENV=${ENV:-vllm-env}
+ENV=${ENV:-gjudge}
 export PYTHONNOUSERSITE=1
 source ~/anaconda3/etc/profile.d/conda.sh 2>/dev/null || source ~/miniconda3/etc/profile.d/conda.sh
 conda activate "$ENV"
@@ -98,16 +98,24 @@ python -c "import sys; print('sys.path[0:3] :', sys.path[:3])"
 python -c "import torch; print('torch        :', torch.__version__, '| cuda', torch.cuda.is_available())" || echo "torch import FAILED"
 echo "-----------------------"
 
-if ! python -c "import vllm" 2>/tmp/vllm_err.$$; then
-    echo "ERROR: vLLM not importable in conda env '$ENV'. The REAL error:"
-    sed 's/^/    /' /tmp/vllm_err.$$ | tail -15
-    rm -f /tmp/vllm_err.$$
+# This cluster's driver (12.8) cannot run the CUDA-13 vLLM wheels, so the
+# transformers backend is the intended path - require THAT, not vLLM.
+# Defaulting --backend transformers also skips a doomed vLLM init that cost
+# minutes per task.
+BACKEND=${BACKEND:-transformers}
+if ! python -c "import torch, transformers" 2>/tmp/hf_err.$$; then
+    echo "ERROR: torch/transformers not importable in conda env '$ENV':"
+    sed 's/^/    /' /tmp/hf_err.$$ | tail -10
+    rm -f /tmp/hf_err.$$
     echo
-    echo "Run the pre-flight ONCE first (it installs into the env, not ~/.local):"
-    echo "  sbatch sbatch_scripts/setup_gemma_judge.sh"
+    echo "Build the env once:"
+    echo "  conda create -n gjudge python=3.10 -y && conda activate gjudge"
+    echo "  export PYTHONNOUSERSITE=1"
+    echo "  pip install --no-user transformers accelerate sentencepiece protobuf"
+    echo "  pip install --no-user 'torch==2.6.0' --index-url https://download.pytorch.org/whl/cu124"
     exit 1
 fi
-rm -f /tmp/vllm_err.$$
+rm -f /tmp/hf_err.$$
 
 echo "=== node $(hostname) | part $PART_IDX/$PARTS | $(date) ==="
 nvidia-smi --query-gpu=index,name --format=csv,noheader
@@ -116,6 +124,7 @@ python "$SCRIPT" \
     --input "$INPUT" \
     --model "$MODEL" \
     --parts "$PARTS" --part "$PART_IDX" \
+    --backend "$BACKEND" \
     --out-prefix "$OUT_PREFIX"
 
 echo "=== done part $PART_IDX | $(date) ==="

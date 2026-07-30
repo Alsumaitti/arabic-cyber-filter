@@ -15,7 +15,7 @@
 #
 # The login node kills interactive python, so every check happens in a job:
 #   1. GPU visible?  which one?
-#   2. vLLM importable? (installs it if missing - ONCE, never in the array)
+#   2. torch/transformers importable, and does the GPU really work?
 #   3. does the model actually load, and does it emit parseable verdicts?
 #      -> judges 5 real records and prints them
 #
@@ -35,11 +35,11 @@ INPUT=$BASE/validation_prompts.jsonl
 
 mkdir -p "$BASE/logs" "$BASE/out"
 
-# Dedicated env for vLLM (override: --export=ALL,ENV=other-env).
+# Dedicated env (override: --export=ALL,ENV=other-env).
 # PYTHONNOUSERSITE stops ~/.local/lib/python3.10/site-packages leaking in -
 # that dir is SHARED by every python3.10 env on the account, so a stray
 # `pip install` there silently mixes environments (and broke this run once).
-ENV=${ENV:-vllm-env}
+ENV=${ENV:-gjudge}
 export PYTHONNOUSERSITE=1
 source ~/anaconda3/etc/profile.d/conda.sh 2>/dev/null || source ~/miniconda3/etc/profile.d/conda.sh
 conda activate "$ENV"
@@ -55,20 +55,27 @@ echo "=== node $(hostname) | $(date) ==="
 nvidia-smi --query-gpu=index,name,memory.total --format=csv || echo "!! no nvidia-smi"
 echo "python: $(which python)"
 
-# --- vLLM ------------------------------------------------------------------
-if python -c "import vllm" 2>/tmp/vllm_import_err.$$; then
-    echo "vLLM present: $(python -c 'import vllm;print(vllm.__version__)')"
+# --- backend deps -----------------------------------------------------------
+# Deliberately does NOT install vLLM: its wheels need CUDA 13 while this
+# driver is 12.8, and `pip install vllm` would drag torch to 2.11 and DESTROY
+# a working cu124 env. transformers is the supported path on this cluster.
+if python -c "import torch, transformers" 2>/tmp/hf_err.$$; then
+    python - <<'PYCHK'
+import torch, transformers
+print("torch       :", torch.__version__)
+print("transformers:", transformers.__version__)
+print("cuda        :", torch.cuda.is_available())
+print("matmul      :", (torch.zeros(8,8,device="cuda")@torch.zeros(8,8,device="cuda")).sum().item())
+print("gpu         :", torch.cuda.get_device_name(0))
+PYCHK
 else
-    echo "vLLM not importable. Error was:"
-    sed 's/^/    /' /tmp/vllm_import_err.$$ | tail -5
-    echo "installing into $CONDA_PREFIX (one time) ..."
-    # --no-user forces it INTO the env: a plain `pip install` can land in
-    # ~/.local/lib/python3.10/site-packages, which every python3.10 env on
-    # the account shares - that is what entangled ocr-env and vllm-env.
-    python -m pip install --no-user vllm
-    python -c "import vllm;print('vLLM installed:',vllm.__version__)"
+    echo "ERROR: torch/transformers missing in $CONDA_PREFIX:"
+    sed 's/^/    /' /tmp/hf_err.$$ | tail -10
+    echo "  pip install --no-user transformers accelerate sentencepiece protobuf"
+    echo "  pip install --no-user 'torch==2.6.0' --index-url https://download.pytorch.org/whl/cu124"
+    exit 1
 fi
-rm -f /tmp/vllm_import_err.$$
+rm -f /tmp/hf_err.$$
 
 # --- model + 5-record smoke test ------------------------------------------
 echo
@@ -77,6 +84,7 @@ python "$SCRIPT" \
     --input "$INPUT" \
     --model "$MODEL" \
     --limit 5 --verbose \
+    --backend "${BACKEND:-transformers}" \
     --out-prefix "$BASE/out/smoke" \
     --no-done-marker
 
