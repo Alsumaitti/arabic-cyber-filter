@@ -29,9 +29,14 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--input", required=True)
     ap.add_argument("--model", required=True)
-    ap.add_argument("--sizes", default="8,16,32,48,64")
+    ap.add_argument("--sizes", default="16384,24576,32768,40960,49152",
+                    help="TOKEN BUDGETS to sweep (batch_size x longest prompt), "
+                         "which is what the real run actually controls - not a "
+                         "fixed batch count.")
+    ap.add_argument("--max-batch", type=int, default=64,
+                    help="upper bound on prompts per batch regardless of budget")
     ap.add_argument("--per-size", type=int, default=96,
-                    help="records timed per batch size (rounded up to whole batches)")
+                    help="records timed per setting")
     ap.add_argument("--max-tokens", type=int, default=200)
     ap.add_argument("--max-model-len", type=int, default=8192)
     ap.add_argument("--total-records", type=int, default=370019,
@@ -68,44 +73,67 @@ def main():
     print(f"loaded in {time.time()-t0:.0f}s on {torch.cuda.get_device_name(0)}",
           flush=True)
 
-    # Same shape of prompt the real run uses, so the timing transfers.
+    # THE REAL PROMPT, not a bare text message. Without the SYSTEM rubric the
+    # model has no JSON to emit, so it generates the full max_new_tokens every
+    # time instead of stopping at EOS after a short verdict - which understates
+    # throughput badly and makes the whole projection wrong.
+    sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+    from judge_with_gemma import SYSTEM, USER_TMPL
+
     def build(rs):
         out = []
         for r in rs:
-            msgs = [{"role": "user", "content": r["text"][:6000]}]
+            msgs = [{"role": "system", "content": SYSTEM},
+                    {"role": "user", "content": USER_TMPL.format(text=r["text"][:6000])}]
             out.append(tok.apply_chat_template(msgs, tokenize=False,
                                                add_generation_prompt=True))
         return out
 
+    all_prompts = build(recs[: args.per_size])
+    lens = [len(tok(p, truncation=True,
+                    max_length=args.max_model_len)["input_ids"]) for p in all_prompts]
+    order = sorted(range(len(all_prompts)), key=lambda i: lens[i])
+    print(f"prompt tokens: min {min(lens)} / median {sorted(lens)[len(lens)//2]} "
+          f"/ max {max(lens)}", flush=True)
+
     results = []
-    for bs in sizes:
-        n = max(bs, (args.per_size // bs) * bs)
-        prompts = build(recs[:n])
-        # Length-sort, exactly as the real run does, or the measurement flatters
-        # the unsorted case and the projection is wrong.
-        prompts.sort(key=len)
+    for budget in sizes:
+        # Form batches exactly as the real run does.
+        batches, cur = [], []
+        for k in order:
+            trial = cur + [k]
+            if cur and (len(trial) * lens[k] > budget or len(trial) > args.max_batch):
+                batches.append(cur)
+                cur = [k]
+            else:
+                cur = trial
+        if cur:
+            batches.append(cur)
+        avg_bs = len(all_prompts) / len(batches)
+
         torch.cuda.empty_cache()
         torch.cuda.reset_peak_memory_stats()
         try:
             t1 = time.time()
-            for i in range(0, len(prompts), bs):
-                batch = prompts[i:i + bs]
+            for idxs in batches:
+                batch = [all_prompts[k] for k in idxs]
                 enc = tok(batch, return_tensors="pt", padding=True,
                           truncation=True, max_length=args.max_model_len).to(model.device)
                 with torch.no_grad():
                     model.generate(**enc, max_new_tokens=args.max_tokens,
                                    do_sample=False, pad_token_id=tok.pad_token_id)
+                del enc
             el = time.time() - t1
-            rate = len(prompts) / el
+            rate = len(all_prompts) / el
             peak = torch.cuda.max_memory_allocated() / 1e9
             gpu_h = args.total_records / rate / 3600
-            results.append((bs, rate, peak, gpu_h))
-            print(f"  batch {bs:>3}: {rate:5.2f} rec/s | peak {peak:5.1f} GB | "
-                  f"full run {gpu_h:5.0f} GPU-h = {gpu_h/args.gpus/24:.1f} days "
-                  f"on {args.gpus} GPUs", flush=True)
+            results.append((budget, rate, peak, gpu_h))
+            print(f"  budget {budget:>6,}: {rate:5.2f} rec/s | avg batch "
+                  f"{avg_bs:4.1f} | peak {peak:5.1f} GB | full run {gpu_h:5.0f} "
+                  f"GPU-h = {gpu_h/args.gpus/24:.1f} days", flush=True)
         except torch.cuda.OutOfMemoryError:
-            print(f"  batch {bs:>3}: OOM - stop here, use the largest size below",
-                  flush=True)
+            print(f"  budget {budget:>6,}: OOM - the real run would split and "
+                  f"recover here, but slowly. Use a lower budget.", flush=True)
             torch.cuda.empty_cache()
             break
 
@@ -113,18 +141,29 @@ def main():
         sys.exit("error: every batch size failed")
 
     best = max(results, key=lambda r: r[1])
-    base = results[0]
-    print(f"\n=== BEST: batch {best[0]} at {best[1]:.2f} rec/s ===")
-    print(f"  speedup vs batch {base[0]}: {best[1]/base[1]:.2f}x")
-    print(f"  full {args.total_records:,}-record run: {best[3]:.0f} GPU-hours "
-          f"= {best[3]/args.gpus/24:.1f} days on {args.gpus} GPUs")
-    slice_max = 8 * 3600 * best[1]
+    # Back off one step from whatever peaked highest: the fastest setting is
+    # usually the one closest to OOM, and paying for OOM splits mid-run costs
+    # more than the margin saves. If the best IS the lowest budget, keep it.
+    safe = best
+    for b, rate, peak, gh in results:
+        if b < best[0] and rate >= best[1] * 0.95:
+            safe = (b, rate, peak, gh)
+            break
+
+    print(f"\n=== FASTEST: budget {best[0]:,} at {best[1]:.2f} rec/s "
+          f"(peak {best[2]:.1f} GB) ===")
+    if safe[0] != best[0]:
+        print(f"=== RECOMMENDED: budget {safe[0]:,} at {safe[1]:.2f} rec/s "
+              f"(peak {safe[2]:.1f} GB) - within 5% and further from OOM ===")
+    print(f"  full {args.total_records:,}-record run: {safe[3]:.0f} GPU-hours "
+          f"= {safe[3]/args.gpus/24:.1f} days on {args.gpus} GPUs")
+    slice_max = 8 * 3600 * safe[1]
     parts = int(args.total_records / slice_max) + 1
+    parts = max(parts + 2, 4)
     print(f"  max records per 8h slice: {slice_max:,.0f}")
-    print(f"  -> PARTS >= {args.total_records/slice_max:.1f}, use PARTS={max(parts+2, 4)} "
-          f"for margin")
-    print(f"\nsbatch --export=ALL,PARTS={max(parts+2,4)},BATCH={best[0]} "
-          f"--array=0-{max(parts+2,4)-1} sbatch_scripts/judge_v4_full.sh")
+    print(f"  -> PARTS >= {args.total_records/slice_max:.1f}, use PARTS={parts} for margin")
+    print(f"\nsbatch --export=ALL,PARTS={parts},TOKEN_BUDGET={safe[0]} "
+          f"--array=0-{parts-1} sbatch_scripts/judge_v4_full.sh")
 
 
 if __name__ == "__main__":

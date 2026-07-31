@@ -35,7 +35,7 @@ BASE=/export/home/oalsumaitti/fanar-data/judge_bench
 SCRIPT=$BASE/scripts/bench_judge_throughput.py
 MODEL=$HOME/models/gemma-4-31B-it
 INPUT=${INPUT:-$BASE/v4_full_prompts.jsonl}
-SIZES=${SIZES:-8,16,32,48,64}
+SIZES=${SIZES:-16384,24576,32768,40960,49152}
 
 mkdir -p "$BASE/logs"
 
