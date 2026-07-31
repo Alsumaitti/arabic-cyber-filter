@@ -33,12 +33,20 @@
 #   Re-measure after changing BATCH and resize accordingly:
 #      grep 'rec/s' logs/v4full_*.out | tail -3
 #
-# THROUGHPUT: batch size now defaults to 32, not 8. A 31B in bf16 is ~62GB of a
-# 141GB card, so batch 8 left most of the KV cache idle. Prompts are also
-# length-sorted now, which removes the padding waste of mixing a 300-token and a
-# 3000-token document in one batch. Both should raise 0.63 rec/s substantially -
-# measure before committing to an array width.
-#      sbatch --export=ALL,BATCH=48 ...      # raise until it OOMs, then back off
+# THROUGHPUT: prompts are length-sorted (removing the padding waste of mixing a
+# 300-token and a 3000-token document in one batch) and batched to a TOKEN
+# BUDGET rather than a fixed count. Batch 8 left most of a 141GB card idle for a
+# ~62GB model; the budget fills it without OOMing on the long tail. Expect well
+# above 0.63 rec/s - measure before committing to an array width.
+#      sbatch --export=ALL,TOKEN_BUDGET=65536 ...   # more speed, more OOM risk
+#
+# OOM IS NOW HANDLED, not fatal. Batching is by TOKEN BUDGET (batch_size x
+# longest prompt), so long documents automatically get smaller batches - a fixed
+# count safe for 500-token prompts is a 260k-token prefill at 8k. If a batch
+# still OOMs the script halves it and retries rather than losing the slice, and
+# completed generations are checkpointed to .partial so a resubmit resumes
+# instead of restarting. Lower the budget if the log shows frequent splits:
+#      sbatch --export=ALL,TOKEN_BUDGET=32768 ...
 #
 # RESUMABLE AND SAFE TO OVERSHOOT: every finished slice writes a .done marker and
 # is skipped on resubmit. If a slice times out, raise PARTS and resubmit - the
@@ -66,7 +74,8 @@ INPUT=$BASE/v4_full_prompts.jsonl
 OUT_DIR=$BASE/out_full
 
 PARTS=${PARTS:-32}               # keep equal to the array width
-BATCH=${BATCH:-32}               # prompts per forward pass; raise if VRAM allows
+BATCH=${BATCH:-64}               # UPPER BOUND on prompts per batch
+TOKEN_BUDGET=${TOKEN_BUDGET:-49152}   # real limit: max padded tokens per batch
 
 mkdir -p "$BASE/logs" "$OUT_DIR"
 
@@ -99,6 +108,10 @@ fi
 # dir is SHARED by every python3.10 env on the account.
 ENV=${ENV:-gjudge}
 export PYTHONNOUSERSITE=1
+
+# The OOM traceback showed 11.7GB "reserved but unallocated" - allocator
+# fragmentation, which expandable_segments largely removes. Costs nothing.
+export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
 source ~/anaconda3/etc/profile.d/conda.sh 2>/dev/null || source ~/miniconda3/etc/profile.d/conda.sh
 conda activate "$ENV"
 
@@ -123,6 +136,7 @@ python "$SCRIPT" \
     --parts "$PARTS" --part "$PART_IDX" \
     --backend "$BACKEND" \
     --batch-size "$BATCH" \
+    --token-budget "$TOKEN_BUDGET" \
     --out-prefix "$OUT_PREFIX"
 
 echo "=== done part $PART_IDX | $(date) ==="

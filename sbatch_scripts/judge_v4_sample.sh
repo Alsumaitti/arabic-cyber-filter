@@ -81,6 +81,10 @@ fi
 # `pip install` there silently mixes environments (and broke this run once).
 ENV=${ENV:-gjudge}
 export PYTHONNOUSERSITE=1
+
+# The OOM traceback showed 11.7GB "reserved but unallocated" - allocator
+# fragmentation, which expandable_segments largely removes. Costs nothing.
+export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
 source ~/anaconda3/etc/profile.d/conda.sh 2>/dev/null || source ~/miniconda3/etc/profile.d/conda.sh
 conda activate "$ENV"
 

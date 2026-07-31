@@ -136,11 +136,16 @@ def main():
                     help="auto = try vLLM, fall back to transformers. Use "
                          "transformers when the cluster driver is older than the "
                          "CUDA the vLLM wheels were built for.")
-    ap.add_argument("--batch-size", type=int, default=32,
-                    help="transformers backend only: prompts per forward pass. "
-                         "Measured 0.63 rec/s at batch 8 on an H200 - a 31B in "
-                         "bf16 is ~62GB of a 141GB card, so the rest was idle KV "
-                         "cache. Raise until it OOMs, then back off.")
+    ap.add_argument("--batch-size", type=int, default=64,
+                    help="transformers backend only: UPPER BOUND on prompts per "
+                         "forward pass. The real limit is --token-budget; this "
+                         "just stops very short prompts forming absurd batches.")
+    ap.add_argument("--token-budget", type=int, default=49152,
+                    help="max padded tokens per batch (batch_size x longest "
+                         "prompt). This, not --batch-size, is what prevents OOM: "
+                         "a fixed count that is safe for 500-token prompts is a "
+                         "260k-token prefill for 8k-token ones. Lower it if you "
+                         "still see OOM splits in the log; raise it for speed.")
     ap.add_argument("--no-done-marker", action="store_true")
     ap.add_argument("--verbose", action="store_true")
     args = ap.parse_args()
@@ -288,37 +293,123 @@ def main():
                          f"take hours. Fix the torch/driver mismatch first.")
 
         prompts = build_prompts(tok)
-        bs = max(1, args.batch_size)
 
-        # LENGTH-SORTED BATCHING.
+        # LENGTH-SORTED, TOKEN-BUDGETED BATCHING.
         # Batching in input order pads every batch to its longest member, and
         # these prompts vary a lot (a few hundred to several thousand tokens), so
-        # a short document sharing a batch with a long one is padded to the long
-        # one and its compute is thrown away. Grouping similar lengths together
-        # collapses that waste. Results are written back to their original
-        # positions, so output order is unchanged and the join by id is unaffected.
-        order = sorted(range(len(prompts)), key=lambda i: len(prompts[i]))
+        # a short document sharing a batch with a long one has its compute thrown
+        # away. Sorting by length collapses that waste.
+        #
+        # But sorting also CONCENTRATES the worst case: all the longest documents
+        # now land in the same batches, and a fixed batch size that is fine for
+        # short prompts OOMs on those tail batches (batch 32 x ~8k tokens is a
+        # ~260k-token prefill). So batch by a TOKEN BUDGET instead of a fixed
+        # count - short prompts get big batches, long prompts get small ones, and
+        # peak memory stays roughly flat across the whole run.
+        #
+        # Results are written back to original positions, so output order is
+        # unchanged and the join by id is unaffected.
+        lens = [len(tok(p, truncation=True,
+                        max_length=args.max_model_len)["input_ids"]) for p in prompts]
+        order = sorted(range(len(prompts)), key=lambda i: lens[i])
         raws = [None] * len(prompts)
 
+        budget = max(args.token_budget, args.max_model_len)
+        cap = max(1, args.batch_size)
+        batches, cur = [], []
+        for k in order:
+            trial = cur + [k]
+            if cur and (len(trial) * lens[k] > budget or len(trial) > cap):
+                batches.append(cur)
+                cur = [k]
+            else:
+                cur = trial
+        if cur:
+            batches.append(cur)
+        print(f"[hf] {len(prompts):,} prompts -> {len(batches):,} batches "
+              f"(token budget {budget:,}, max batch {cap}, "
+              f"len {min(lens)}-{max(lens)} tok)", flush=True)
+
+        # CHECKPOINTING. A slice runs for hours; without this, any crash, timeout
+        # or preemption throws away everything it had generated. Completed
+        # generations are appended to a .partial file and reloaded on restart, so
+        # a resubmitted slice picks up where it stopped instead of starting over.
+        ckpt_path = args.out_prefix + ".partial"
+        resumed = 0
+        if os.path.exists(ckpt_path):
+            by_id = {}
+            with open(ckpt_path, encoding="utf-8") as fh:
+                for line in fh:
+                    line = line.strip()
+                    if not line:
+                        continue
+                    try:
+                        rec = json.loads(line)
+                    except json.JSONDecodeError:
+                        continue           # a torn last line from a hard kill
+                    by_id[rec["id"]] = rec["raw"]
+            for pos, r in enumerate(rows):
+                if r["id"] in by_id:
+                    raws[pos] = by_id[r["id"]]
+                    resumed += 1
+            print(f"[hf] resuming: {resumed:,} generations recovered from "
+                  f"{os.path.basename(ckpt_path)}", flush=True)
+            batches = [[k for k in b if raws[k] is None] for b in batches]
+            batches = [b for b in batches if b]
+
+        ckpt = open(ckpt_path, "a", encoding="utf-8", newline="\n")
+
         t1 = time.time()
-        done = 0
-        for i in range(0, len(order), bs):
-            idxs = order[i:i + bs]
-            batch = [prompts[k] for k in idxs]
-            enc = tok(batch, return_tensors="pt", padding=True,
-                      truncation=True, max_length=args.max_model_len).to(model.device)
-            with torch.no_grad():
-                gen = model.generate(**enc, max_new_tokens=args.max_tokens,
-                                     do_sample=False,
-                                     pad_token_id=tok.pad_token_id)
-            for j, k in enumerate(idxs):
-                new_tokens = gen[j][enc["input_ids"].shape[1]:]
-                raws[k] = tok.decode(new_tokens, skip_special_tokens=True).strip()
-            done += len(idxs)
+        done = resumed
+        for idxs in batches:
+            # OOM RECOVERY: a slice can run for hours, and losing all of it to one
+            # oversized batch is the expensive failure. Halve and retry instead.
+            work = [idxs]
+            while work:
+                cur_idx = work.pop(0)
+                try:
+                    batch = [prompts[k] for k in cur_idx]
+                    enc = tok(batch, return_tensors="pt", padding=True,
+                              truncation=True,
+                              max_length=args.max_model_len).to(model.device)
+                    with torch.no_grad():
+                        gen = model.generate(**enc, max_new_tokens=args.max_tokens,
+                                             do_sample=False,
+                                             pad_token_id=tok.pad_token_id)
+                    for j, k in enumerate(cur_idx):
+                        new_tokens = gen[j][enc["input_ids"].shape[1]:]
+                        raws[k] = tok.decode(new_tokens,
+                                             skip_special_tokens=True).strip()
+                        ckpt.write(json.dumps({"id": rows[k]["id"], "raw": raws[k]},
+                                              ensure_ascii=False) + "\n")
+                    ckpt.flush()
+                    done += len(cur_idx)
+                    del enc, gen
+                except torch.cuda.OutOfMemoryError:
+                    torch.cuda.empty_cache()
+                    if len(cur_idx) == 1:
+                        print(f"[hf] !! OOM on a single prompt "
+                              f"({lens[cur_idx[0]]} tok) - skipping it", flush=True)
+                        raws[cur_idx[0]] = ""
+                        ckpt.write(json.dumps({"id": rows[cur_idx[0]]["id"],
+                                               "raw": ""}, ensure_ascii=False) + "\n")
+                        ckpt.flush()
+                        done += 1
+                        continue
+                    h = len(cur_idx) // 2
+                    print(f"[hf] !! OOM at batch {len(cur_idx)} "
+                          f"(max {max(lens[k] for k in cur_idx)} tok) -> "
+                          f"splitting to {h}/{len(cur_idx)-h}", flush=True)
+                    work = [cur_idx[:h], cur_idx[h:]] + work
             el = time.time() - t1
-            eta = (len(prompts) - done) / (done / el) / 60 if done else 0
-            print(f"[hf]   {done}/{len(prompts)} | {done/el:.2f} rec/s | "
+            # Rate must count only what THIS run generated - `done` includes
+            # records recovered from the checkpoint, which took no time here.
+            made = done - resumed
+            rate = made / el if el > 0 else 0.0
+            eta = (len(prompts) - done) / rate / 60 if rate > 0 else 0
+            print(f"[hf]   {done}/{len(prompts)} | {rate:.2f} rec/s | "
                   f"{el/60:.1f} min | ETA {eta:.0f} min", flush=True)
+        ckpt.close()
         return raws
 
     backend = args.backend
@@ -361,6 +452,11 @@ def main():
     if not args.no_done_marker:
         with open(done_path, "w") as f:
             f.write(f"records={len(rows)} parsed={n_ok} unparsed={n_bad}\n")
+    # The checkpoint has served its purpose once the real output exists; leaving
+    # it would double the disk cost and confuse a later resume.
+    ckpt_path = args.out_prefix + ".partial"
+    if os.path.exists(ckpt_path):
+        os.remove(ckpt_path)
 
     print(f"\nparsed OK : {n_ok}\nunparsed  : {n_bad}")
     print(f"jsonl -> {out_path}")
