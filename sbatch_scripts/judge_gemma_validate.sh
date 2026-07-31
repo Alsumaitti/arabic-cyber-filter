@@ -23,12 +23,12 @@
 #
 # !! FIRST TIME:
 #      mkdir -p ~/fanar-data/judge_bench/{logs,out}
-#      sbatch sbatch_scripts/setup_gemma_judge.sh     # verifies GPU, smoke test
+#      sbatch setup_gemma_judge.sh     # verifies GPU, smoke test
 #
 # RESUMABLE: finished slices leave a .done marker; just resubmit this file.
 #
 # Scale PARTS to the GPUs you can get:
-#   sbatch --export=ALL,PARTS=8 --array=0-7 sbatch_scripts/judge_gemma_validate.sh
+#   sbatch --export=ALL,PARTS=8 --array=0-7 judge_gemma_validate.sh
 # ---------------------------------------------------------------------------
 set -euo pipefail
 

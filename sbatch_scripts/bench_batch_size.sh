@@ -24,7 +24,7 @@
 #
 # !! Run prepare_v4_full.sh first (this reads v4_full_prompts.jsonl).
 #
-#   sbatch sbatch_scripts/bench_batch_size.sh
+#   sbatch bench_batch_size.sh
 #   tail -30 ~/fanar-data/judge_bench/logs/bench_*.out
 #
 # It prints the exact sbatch line to use for the real run.
@@ -41,7 +41,7 @@ mkdir -p "$BASE/logs"
 
 if [[ ! -f "$INPUT" ]]; then
     echo "ERROR: $INPUT not found."
-    echo "Run:  sbatch sbatch_scripts/prepare_v4_full.sh"
+    echo "Run:  sbatch prepare_v4_full.sh"
     echo "Or point elsewhere:  sbatch --export=ALL,INPUT=/path/prompts.jsonl $0"
     exit 1
 fi

@@ -18,11 +18,11 @@
 #    the job dies silently with no log at all:
 #      mkdir -p ~/fanar-data/judge_bench/{logs,out}
 #
-#   sbatch sbatch_scripts/sample_v4_for_judging.sh
+#   sbatch sample_v4_for_judging.sh
 #   tail -40 ~/fanar-data/judge_bench/logs/sample_*.out
 #
 # Override the sample size (per acceptance rule, 4 rules -> x4 total):
-#   sbatch --export=ALL,PER_RULE=1000 sbatch_scripts/sample_v4_for_judging.sh
+#   sbatch --export=ALL,PER_RULE=1000 sample_v4_for_judging.sh
 # ---------------------------------------------------------------------------
 set -euo pipefail
 
@@ -39,7 +39,7 @@ if [[ ! -f "$CORPUS" ]]; then
     echo
     echo "Either the merge has not run, or it wrote .json instead of .jsonl."
     echo "Check:  ls -la ~/fanar-data/cyber_filtered/result/"
-    echo "Then:   sbatch sbatch_scripts/merge_v4.sh      # defaults to jsonl"
+    echo "Then:   sbatch merge_v4.sh      # defaults to jsonl"
     echo "Or point this job at the right file:"
     echo "  sbatch --export=ALL,CORPUS=/path/to/corpus.jsonl $0"
     exit 1
@@ -62,4 +62,4 @@ python "$SCRIPT" \
 
 echo
 echo "=== done | $(date) ==="
-echo "next:  sbatch sbatch_scripts/judge_v4_sample.sh"
+echo "next:  sbatch judge_v4_sample.sh"

@@ -47,7 +47,7 @@ OUT_DIR=$BASE/output_v4
 
 # Row-group slices per parquet file. Override at submit time WITHOUT editing
 # this file, e.g. 25 files x 40 parts = 1000 tasks:
-#     sbatch --export=ALL,PARTS=40 --array=0-999 sbatch_scripts/filter_cyber_parquet_tiered.sh
+#     sbatch --export=ALL,PARTS=40 --array=0-999 filter_cyber_parquet_tiered.sh
 # NOTE: PARTS is part of the output filename, so two different PARTS values
 # never overwrite or silently mix with each other (the merge job refuses to
 # merge a mixture). Changing PARTS = a fresh, independent set of outputs.
@@ -103,7 +103,7 @@ conda activate ocr-env
 if ! python -c "import pyarrow" 2>/dev/null; then
     echo "ERROR: pyarrow is not installed in ocr-env."
     echo "       Run the one-time pre-flight job first:"
-    echo "         sbatch sbatch_scripts/setup_and_inspect_parquet.sh"
+    echo "         sbatch setup_and_inspect_parquet.sh"
     exit 1
 fi
 

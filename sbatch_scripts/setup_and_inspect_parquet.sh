@@ -19,7 +19,7 @@
 #   3. prints the exact --array range to use, given PARTS
 #
 #   mkdir -p ~/fanar-data/cyber_filtered/{logs_v4,output_v4}   # first!
-#   sbatch sbatch_scripts/setup_and_inspect_parquet.sh
+#   sbatch setup_and_inspect_parquet.sh
 #   tail -40 ~/fanar-data/cyber_filtered/logs_v4/preflight_*.out
 # ---------------------------------------------------------------------------
 set -euo pipefail

@@ -14,7 +14,7 @@
 # !! The log dir must exist before you submit, or the job dies with no log:
 #      mkdir -p ~/fanar-data/judge_bench/{logs,out_full}
 #
-#   sbatch sbatch_scripts/prepare_v4_full.sh
+#   sbatch prepare_v4_full.sh
 #   tail -40 ~/fanar-data/judge_bench/logs/prep_full_*.out
 # ---------------------------------------------------------------------------
 set -euo pipefail

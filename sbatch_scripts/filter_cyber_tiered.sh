@@ -32,7 +32,7 @@
 #   ls ~/fanar-data/FineWeb2/*.jsonl.gz | wc -l   -> set --array=0-<count-1>
 #
 # After all tasks finish, merge (as an sbatch job, NOT on the login node):
-#   sbatch sbatch_scripts/merge_cyber_tiered.sh
+#   sbatch merge_cyber_tiered.sh
 # ---------------------------------------------------------------------------
 set -euo pipefail
 

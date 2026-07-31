@@ -28,7 +28,7 @@
 #
 # !! FIRST:
 #      mkdir -p ~/fanar-data/judge_bench/{logs,out}
-#      sbatch sbatch_scripts/sample_v4_for_judging.sh     # writes the sample
+#      sbatch sample_v4_for_judging.sh     # writes the sample
 #
 # WALL TIME is 8h, not 4h: this sample is larger than the 1,992-record
 # validation set. Watch the first progress line and scale PARTS if it is tight.
@@ -36,7 +36,7 @@
 # RESUMABLE: finished slices leave a .done marker; just resubmit.
 #
 # Scale to whatever GPUs you can get (PARTS must equal the array width):
-#   sbatch --export=ALL,PARTS=4 --array=0-3 sbatch_scripts/judge_v4_sample.sh
+#   sbatch --export=ALL,PARTS=4 --array=0-3 judge_v4_sample.sh
 # ---------------------------------------------------------------------------
 set -euo pipefail
 
@@ -52,7 +52,7 @@ mkdir -p "$BASE/logs" "$OUT_DIR"
 
 if [[ ! -f "$INPUT" ]]; then
     echo "ERROR: $INPUT not found."
-    echo "Run the sampler first:  sbatch sbatch_scripts/sample_v4_for_judging.sh"
+    echo "Run the sampler first:  sbatch sample_v4_for_judging.sh"
     exit 1
 fi
 

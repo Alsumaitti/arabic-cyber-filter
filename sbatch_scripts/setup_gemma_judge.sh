@@ -20,7 +20,7 @@
 #      -> judges 5 real records and prints them
 #
 #   mkdir -p ~/fanar-data/judge_bench/{logs,out}
-#   sbatch sbatch_scripts/setup_gemma_judge.sh
+#   sbatch setup_gemma_judge.sh
 #   tail -60 ~/fanar-data/judge_bench/logs/preflight_*.out
 #
 # Allocation: partition gpu-H200, account h200_intern, qos h200_intern_qos
@@ -91,4 +91,4 @@ python "$SCRIPT" \
 echo
 echo "=== preflight done | $(date) ==="
 echo "If the 5 verdicts above look sane, launch the array:"
-echo "  sbatch sbatch_scripts/judge_gemma_validate.sh"
+echo "  sbatch judge_gemma_validate.sh"

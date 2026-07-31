@@ -71,7 +71,7 @@ if (( NDONE != EXPECTED )); then
     echo "       Whole files may never have been attempted (a too-short --array"
     echo "       does exactly this). Resubmit the filter with:"
     echo "         sbatch --export=ALL,PARTS=$PARTS --array=0-$(( EXPECTED - 1 )) \\"
-    echo "                sbatch_scripts/filter_cyber_parquet_tiered.sh"
+    echo "                filter_cyber_parquet_tiered.sh"
     exit 1
 fi
 

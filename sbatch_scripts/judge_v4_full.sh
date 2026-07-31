@@ -23,7 +23,7 @@
 # beating the best keyword-threshold rule (0.816 at 81.6%) on BOTH axes.
 #
 # !! FIRST:
-#      sbatch sbatch_scripts/prepare_v4_full.sh      # writes v4_full_prompts.jsonl
+#      sbatch prepare_v4_full.sh      # writes v4_full_prompts.jsonl
 #
 # SIZING - MEASURED, not guessed:
 #   0.63 rec/s per GPU at batch size 8 (792 records in 21.0 min).
@@ -52,8 +52,8 @@
 # is skipped on resubmit. If a slice times out, raise PARTS and resubmit - the
 # completed ones are not redone. Prefer too many parts over too few.
 #
-#   sbatch sbatch_scripts/judge_v4_full.sh                          # PARTS=32
-#   sbatch --export=ALL,PARTS=48 --array=0-47 sbatch_scripts/judge_v4_full.sh
+#   sbatch judge_v4_full.sh                          # PARTS=32
+#   sbatch --export=ALL,PARTS=48 --array=0-47 judge_v4_full.sh
 #
 # CHEAPER ALTERNATIVE - judge only the weak stratum:
 #   two_tier2_hits (177,351 records, precision 0.583) causes nearly all the
@@ -81,7 +81,7 @@ mkdir -p "$BASE/logs" "$OUT_DIR"
 
 if [[ ! -f "$INPUT" ]]; then
     echo "ERROR: $INPUT not found."
-    echo "Run the prep job first:  sbatch sbatch_scripts/prepare_v4_full.sh"
+    echo "Run the prep job first:  sbatch prepare_v4_full.sh"
     exit 1
 fi
 
