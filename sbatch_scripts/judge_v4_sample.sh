@@ -122,8 +122,8 @@ python "$SCRIPT" \
 echo "=== done part $PART_IDX | $(date) ==="
 echo
 echo "When ALL parts are done, pull them back and estimate:"
-echo "  scp 'panther-login.qcri.org:$OUT_DIR/gemma_v4_P${PARTS}_p*.jsonl' evaluation/judge_benchmark/"
-echo "  scp panther-login.qcri.org:$BASE/v4_sample_meta.jsonl evaluation/judge_benchmark/"
+echo "  scp 'oalsumaitti@panther-login.qcri.org:$OUT_DIR/gemma_v4_P${PARTS}_p*.jsonl' evaluation/judge_benchmark/"
+echo "  scp oalsumaitti@panther-login.qcri.org:$BASE/v4_sample_meta.jsonl evaluation/judge_benchmark/"
 echo "  python evaluation/scripts/estimate_v4_precision.py \\"
 echo "      --pred 'evaluation/judge_benchmark/gemma_v4_P${PARTS}_p*.jsonl' \\"
 echo "      --meta evaluation/judge_benchmark/v4_sample_meta.jsonl --show-cal"

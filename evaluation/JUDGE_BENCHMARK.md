@@ -208,7 +208,7 @@ python evaluation/scripts/make_fewshot_examples.py
 # 3. upload prompts + exemplars, never the gold
 scp evaluation/judge_benchmark/validation_prompts.jsonl \
     evaluation/judge_benchmark/fewshot_examples.json \
-    panther-login.qcri.org:~/fanar-data/judge_bench/
+    oalsumaitti@panther-login.qcri.org:~/fanar-data/judge_bench/
 
 # 4. on the cluster - one-time check, then both arms
 sbatch sbatch_scripts/setup_gemma_judge.sh
