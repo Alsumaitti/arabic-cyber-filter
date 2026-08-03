@@ -20,6 +20,11 @@ tags:
 - data-curation
 pretty_name: Arabic Cybersecurity Web Corpus
 configs:
+- config_name: cyber_all
+  default: true
+  data_files:
+  - split: train
+    path: cyber_all/train-*.parquet
 - config_name: corpus
   data_files:
   - split: train
@@ -58,14 +63,55 @@ you do not trust our numbers, the `census` config lets you recompute them.
 
 | config | rows | what it is |
 |---|---|---|
-| `corpus` | **277,418** | Arabic web documents about cybersecurity — keyword-filtered from FineWeb2 **and individually LLM-judged** |
-| `census` | 14,653 | **every** document of an earlier corpus version, labelled by a frontier LLM with a justification |
+| **`cyber_all`** *(default)* | **279,480** | **every document judged cybersecurity-related, from both judges, in one place — start here** |
+| `corpus` | 277,418 | the v5 corpus alone: uniform provenance, every record judged by the same open model |
+| `census` | 14,653 | **every** document of an earlier corpus version, labelled by a frontier LLM with a justification — including the `not_cyber` ones |
 | `judge_benchmark` | 1,992 | documents carrying a frontier gold label *and* two open-model runs |
+
+**If you just want the Arabic cybersecurity text, use `cyber_all`:**
+
+```python
+from datasets import load_dataset
+ds = load_dataset("Alsumaitti/arabic-cybersecurity-web", split="train")   # 279,480 docs
+```
 
 Plus `keywords/` — the 1,233-term lexicon and its four evidence-derived tiers, so
 the filter is reproducible rather than merely described.
 
-### `corpus` — the bulk data
+### `cyber_all` — the one to use
+
+**279,480 Arabic documents that a judge read and considered cybersecurity-related**
+(`cyber` or `borderline`). No `not_cyber`, no need to know which corpus version
+produced a record.
+
+It is the union of two judging efforts, which is why it is larger than either:
+
+| source | documents |
+|---|---|
+| open-model judged (v5) only | 273,799 |
+| frontier judged (census) only | 2,062 |
+| **judged by both** | **3,619** |
+
+The 2,062 frontier-only documents predate the parquet crawl or were dropped by
+the tier rule, so they exist nowhere else in this release. Where both judges saw
+a document the **frontier label wins** — it is the reference standard — but both
+are kept in `frontier_label` and `open_model_label`, so that 3,619-document
+overlap doubles as a ready-made agreement set.
+
+| field | description |
+|---|---|
+| `label` | `cyber` or `borderline` — the best available judgment |
+| `label_source` | `frontier` (5,681 docs) or `open_31b` (273,799) |
+| `confidence` / `justification` | populated for frontier-judged records |
+| `frontier_label` / `open_model_label` | both, where both exist |
+| `keywords_found`, `tiers_found`, `accept_rule` | the keyword evidence for inclusion |
+
+Class balance: `cyber` 206,054 · `borderline` 73,426. Treat that split with
+care — the open judge cannot reliably separate the two (see the story below), so
+`borderline` is under-populated relative to truth. The *binary* claim, that these
+documents are security-related at all, is the one that was measured.
+
+### `corpus` — v5 alone, uniform provenance
 
 ```python
 from datasets import load_dataset
