@@ -58,7 +58,7 @@ you do not trust our numbers, the `census` config lets you recompute them.
 
 | config | rows | what it is |
 |---|---|---|
-| `corpus` | ~370,019 | Arabic web documents about cybersecurity, filtered from FineWeb2 |
+| `corpus` | **277,418** | Arabic web documents about cybersecurity — keyword-filtered from FineWeb2 **and individually LLM-judged** |
 | `census` | 14,653 | **every** document of an earlier corpus version, labelled by a frontier LLM with a justification |
 | `judge_benchmark` | 1,992 | documents carrying a frontier gold label *and* two open-model runs |
 
@@ -80,6 +80,23 @@ ds = load_dataset("<YOUR-USERNAME>/arabic-cybersecurity-web", "corpus", split="t
 | `keywords_found` | **which lexicon terms matched** — the evidence for inclusion |
 | `tiers_found` | the tier of each matched term (1 = strongest) |
 | `accept_rule` | which acceptance rule admitted this record |
+| `judge_label` | the judge's verdict: `cyber` or `borderline` (every record here passed) |
+
+**Measured precision: 0.890** [0.863–0.914]. Every one of the 370,019
+keyword-matched candidates was judged individually by a local 31B model with a
+measured operating point, and the 25% it rejected were removed. See the story
+below for what that means and does not mean.
+
+> **Free precision, one line.** Document length is the strongest single quality
+> signal in this corpus — and it is *inverted* from the naive expectation.
+> Removed documents had a median length of 6,854 characters against 3,135 for
+> kept ones, because long pages are forums, archives and aggregators that mention
+> security in passing. Filtering `len(text) < 8000` raises precision from
+> **0.890 to 0.943** while keeping 86% of the records:
+>
+> ```python
+> ds = ds.filter(lambda r: len(r["text"]) < 8000)
+> ```
 
 `keywords_found` is the design decision we would defend hardest: every record
 carries the reason it was kept, so you can audit or re-filter without rerunning
@@ -210,7 +227,24 @@ Sampling also revealed that the four-way acceptance rule is, at scale, really
 **two** rules: `tier1_hit` (192,583 docs) and `two_tier2_hits` (177,351) carry
 99.98% of the corpus, while the other two admit 85 documents between them.
 
-### 5. The methodological result: can an open model replace a frontier judge?
+### 5. Judging all 370,019 documents
+
+The result above made the final step affordable: **every** keyword-matched
+candidate was judged individually — 370,019 verdicts, 0 unparsed, 163 GPU-hours
+across 32 slices on two H200s. 25% were rejected, giving the published corpus.
+
+| | before judging | after judging |
+|---|---|---|
+| records | 370,019 | **277,418** |
+| precision | 0.721 | **0.890** |
+| genuine documents | 266,839 | 246,959 (92.5% retained) |
+
+The census also validated the cheap path. A stratified sample of 1,585 documents
+— 0.4% of the judging cost — had predicted 0.7152 [0.6793–0.7492]; the full
+census came in at **0.7211**. Accurate to 0.6 percentage points. If you need a
+corpus-precision number and cannot afford the full run, the sample is enough.
+
+### 6. The methodological result: can an open model replace a frontier judge?
 
 Frontier judging is the expensive part of careful curation, and the cost lands
 hardest on the languages that most need curating. So we tested the substitution
@@ -260,10 +294,26 @@ language.
 - **This is web text, not vetted reference material.** It is filtered for topic,
   not for accuracy, quality, or safety. It contains SEO spam, forum posts,
   outdated advice, and marketing copy alongside genuine technical writing.
-- **Precision is ~0.715, not 1.0.** Roughly 28% of `corpus` documents are not
-  genuinely about cybersecurity. Use `keywords_found` / `tiers_found` to filter
-  harder if your application needs it — filtering to tier-1 matches raises
-  precision to ~0.837.
+- **Precision is ~0.890, not 1.0.** Roughly 11% of `corpus` documents are not
+  genuinely about cybersecurity. Filter `len(text) < 8000` to reach ~0.943, or
+  use `keywords_found` / `tiers_found` to filter on the keyword evidence.
+- **Topic filtering is not quality filtering.** The largest single source domain
+  is `2-remove-virus.com` (4,700 documents, ~100% kept), alongside
+  `tips2-remove.com` and `fixmybrowsers.com`. These are SEO content farms
+  producing templated malware-removal pages — genuinely *about* cybersecurity,
+  so both the keyword filter and the judge accept them correctly, but low-value
+  text. Consider domain-level deduplication or capping per-domain contributions.
+  The corpus spans 43,443 distinct domains, so this is a head-of-distribution
+  problem rather than a pervasive one.
+- **Do not use `judge_label` confidence as a signal.** The open judge returned
+  `high` confidence on 99.99% of the 370,019 verdicts. It is miscalibrated about
+  its own certainty, and the field is not published for the corpus for that
+  reason. (The `census` config's `confidence`, which comes from the frontier
+  model, *is* meaningful.)
+- **`borderline` documents are included.** The published corpus is
+  `cyber` + `borderline` — documents the judge considered security-related at
+  all. It is not a corpus of exclusively on-topic documents, because the open
+  judge cannot reliably grade centrality (see the story above).
 - **Recall is unmeasured at v4 scale.** We know the filter finds a lot; we do not
   know what fraction of all Arabic security web text it finds. The v1 recall
   study is in the source repository, but it does not transfer to this scale.

@@ -336,6 +336,156 @@ assignment depends on each keyword's good/bad ratio, and a judge that inflates
 `cyber` by 1.9× would inflate every keyword's apparent quality, worst for the
 high-frequency keywords that matter most.
 
+### v5 — every one of the 370,019 documents judged
+
+The full census is done: **370,019 records judged, 0 unparsed, 0 duplicates**,
+163 GPU-hours across 32 slices on 2 × H200. This is the payoff of the judge
+benchmark — a frontier judge on this corpus was never affordable; a calibrated
+open model on local hardware was.
+
+| | v4 | **v5** |
+|---|---|---|
+| records | 370,019 | **277,418** |
+| precision | 0.7211 | **0.8902** [0.8629–0.9137] |
+| genuine records | 266,839 | **246,959** (92.5% retained) |
+
+25.0% of v4 was removed. The interval on v5 reflects **calibration uncertainty
+only** — with every record judged there is no sampling error left, so the sole
+remaining unknown is sens/spec, measured on n=1,992.
+
+#### The sample was right
+
+Worth stating plainly, because it validates the entire method:
+
+| | precision |
+|---|---|
+| stratified sample, n=1,585 | 0.7152 [0.6793–0.7492] |
+| **full census, n=370,019** | **0.7211** |
+
+The sample-based Rogan–Gladen estimate was accurate to **0.6 percentage points**
+against ground truth, from 0.4% of the judging cost. Anyone who needs a corpus
+precision number and cannot afford 163 GPU-hours can stop at the sample.
+
+Per-rule keep rates also matched their predicted precisions closely
+(`tier1_hit` 0.832 kept vs 0.837 predicted; `two_tier2_hits` 0.661 vs 0.583 —
+the latter higher because gemma's false positives partly offset its removals).
+
+#### Document length is a stronger signal than the entire keyword rule
+
+This is the finding we did not expect, and it is free.
+
+| length (chars) | records | keep rate |
+|---|---|---|
+| 0–1,000 | 29,761 | **0.904** |
+| 1,000–2,000 | 68,795 | 0.880 |
+| 2,000–3,000 | 53,872 | 0.855 |
+| 3,000–5,000 | 75,121 | 0.786 |
+| 5,000–8,000 | 61,687 | 0.749 |
+| 8,000–15,000 | 44,007 | 0.679 |
+| 15,000–30,000 | 21,826 | **0.306** |
+| 30,000+ | 14,950 | **0.142** |
+
+Removed documents have a median length of **6,854** characters against **3,135**
+for kept ones — the junk is *longer*, which is the opposite of the naive
+assumption that longer means more substantive. The mechanism is clear once seen:
+long pages are forum threads, news archives, aggregators and terms-of-service
+documents that mention security in passing among a great deal of other content.
+A focused security article is about 3,000 characters.
+
+The filter does not use length at all. It should:
+
+| approach | records | precision | LLM cost |
+|---|---|---|---|
+| v4 as-is | 370,019 | 0.7211 | — |
+| tighten tier rule (`t≤2 ≥ 3`) | 264,706 | 0.816 | — |
+| **length cap < 8,000 chars** | **289,236** | **0.8411** | **none** |
+| v5 (judged) | 277,418 | 0.8902 | 163 GPU-h |
+| **length cap + judged** | **238,722** | **0.9432** | 163 GPU-h |
+
+A one-line length filter beats the entire tier-threshold analysis on both axes,
+at zero cost. And because length and topicality are largely independent signals,
+they compose: applying both gives **0.943**.
+
+Since `text` is in the published data, this needs no new corpus — it is
+`len(text) < 8000`.
+
+#### Keyword density is not monotonic, and the dip is where the rule fires
+
+| distinct keyword hits | records | keep rate |
+|---|---|---|
+| 1 | 79,039 | 0.713 |
+| **2** | **142,776** | **0.656** |
+| 3 | 62,252 | 0.782 |
+| 4 | 31,389 | 0.873 |
+| 5 | 18,347 | 0.911 |
+| 6+ | 36,216 | 0.955 |
+
+Two keywords is *worse* than one. That is not noise — it is a composition
+effect, and it explains the whole `two_tier2_hits` problem. A document accepted
+on a single keyword must have hit a **tier-1** term, which is strong evidence by
+construction. A document accepted on two keywords may have hit two mediocre
+ones. The rule that admits 177,351 records is aimed squarely at the weakest
+density bucket in the corpus.
+
+Above three hits the signal recovers and becomes very strong (0.955 at 6+),
+which vindicates the density idea in general — just not at the threshold of 2.
+
+#### One keyword accounts for a sixth of all the junk
+
+| keyword | appearances | removed | share of all removals |
+|---|---|---|---|
+| `VPN` | 40,260 | 15,147 | **16.4%** |
+| `الوصول غير المصرح به` | 9,597 | 4,432 | 4.8% |
+| `البريد العشوائي` (spam) | 7,465 | 2,921 | 3.2% |
+| `Proxy` | 5,790 | 3,000 | 3.2% |
+| `البريد المزعج` (junk mail) | 6,016 | 2,327 | 2.5% |
+
+`VPN` is a genuine irony. It was one of the 24 English terms added specifically
+to fix the recall gap documented above — and it worked. It is also now the single
+largest precision liability in the corpus, because "VPN" appears in every
+streaming-unblocker guide, privacy-product marketing page and
+how-to-watch-football listicle on the Arabic web. Recall and precision were
+bought from the same purchase.
+
+The weakest terms overall are generic-infrastructure vocabulary that has
+non-security senses — `الباب الخلفي` (back door, often a literal one),
+`تسجيل الدخول الموحد` (single sign-on), `التحكم في الوصول` (access control),
+`التنمر الإلكتروني` (cyberbullying, mostly social/educational coverage). The
+strongest are specific attack vocabulary: `هجوم الفدية` (ransomware attack)
+0.993, `هجمات الهندسة الاجتماعية` (social engineering attacks) 0.993,
+`التهديدات المتقدمة المستمرة` (APT) 0.991.
+
+**This table is a diagnostic, not a basis for re-tiering.** The open judge
+inflates every keyword's apparent quality by roughly the same factor, so the
+*ranking* is informative while the absolute rates are not. The tiers stay derived
+from the frontier census.
+
+#### Two limitations the census made visible
+
+**The judge's confidence signal is worthless.** Across 370,019 verdicts it said
+`high` **369,994 times (99.99%)**, `medium` 22 times and `low` 3 times. The
+frontier census, by contrast, spread its confidence meaningfully (64% high, 28%
+medium, 8% low) and reserved low confidence entirely for `borderline`. So the
+open model is miscalibrated not only about labels but about its own certainty —
+do not filter or weight on `judge_confidence` from v5.
+
+**Topic filtering is not quality filtering.** The single largest source domain in
+v5 is `2-remove-virus.com` with 4,700 documents at a 100% keep rate, alongside
+`tips2-remove.com`, `fixmybrowsers.com` and similar. These are SEO content farms
+producing templated malware-removal pages. They are genuinely *about*
+cybersecurity, so both the keyword filter and the judge accept them correctly —
+they are simply low-value text. Anyone training on this corpus should consider
+domain-level deduplication or capping per-domain contributions.
+
+Corpus reach is otherwise healthy: **96 Common Crawl dumps** and **43,443
+distinct domains**.
+
+Reproduce all of the above with:
+
+```bash
+python evaluation/scripts/v5_statistics.py
+```
+
 ### v4 measured — the tiered rule survives a 70× larger crawl
 
 **The headline: corpus precision at v4 scale is 0.715 [95% CI 0.679–0.749], up

@@ -48,3 +48,9 @@ evaluation/judge_benchmark/validation_prompts.jsonl
 
 # HF dataset build output (regenerate with publish/build_hf_dataset.py)
 publish/hf_build/
+
+# Raw per-shard judge verdicts for the v5 census (169 MB of generated prose).
+# The analytic content - id + label for all 370,019 records - is committed as
+# evaluation/judge_benchmark/v5_verdicts_compact.jsonl (16 MB); the full
+# justifications ride along in the published Hugging Face corpus.
+evaluation/out_full/

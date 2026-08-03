@@ -1,0 +1,39 @@
+{
+ "corpus_records": 370019,
+ "judged": 370019,
+ "missing": 0,
+ "unparsed": 0,
+ "labels": {
+  "cyber": 206220,
+  "borderline": 71198,
+  "not_cyber": 92601
+ },
+ "observed_accept": 0.7497398782224697,
+ "implied_v4_precision": 0.7211484661628902,
+ "v5_records": 277418,
+ "v5_precision": 0.890205956519377,
+ "v5_precision_ci": [
+  0.8628980406084311,
+  0.9136666504144406
+ ],
+ "sens": 0.9255,
+ "spec": 0.7048,
+ "per_rule": {
+  "two_tier2_hits": {
+   "v4": 177351,
+   "v5": 117199
+  },
+  "tier1_hit": {
+   "v4": 192583,
+   "v5": 160140
+  },
+  "three_tier3_hits": {
+   "v4": 71,
+   "v5": 66
+  },
+  "four_plus_hits": {
+   "v4": 14,
+   "v5": 13
+  }
+ }
+}
