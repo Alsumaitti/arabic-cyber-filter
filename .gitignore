@@ -54,3 +54,8 @@ publish/hf_build/
 # evaluation/judge_benchmark/v5_verdicts_compact.jsonl (16 MB); the full
 # justifications ride along in the published Hugging Face corpus.
 evaluation/out_full/
+
+# Publishing/operational tooling - how the dataset was uploaded is not part of
+# the research record. Kept locally so the Hub release can still be rebuilt and
+# re-uploaded; the dataset card lives with the dataset on the Hub.
+publish/

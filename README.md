@@ -425,13 +425,41 @@ Several job runs failed because an upload didn't actually transfer the updated s
 
 ## Data availability
 
-The large artifacts are intentionally not tracked in this repository:
+### 📦 The corpus is published on Hugging Face
+
+**[`Alsumaitti/arabic-cybersecurity-web`](https://huggingface.co/datasets/Alsumaitti/arabic-cybersecurity-web)** — ODC-By 1.0, inherited from FineWeb2.
+
+```python
+from datasets import load_dataset
+ds = load_dataset("Alsumaitti/arabic-cybersecurity-web", split="train")   # 279,480 docs
+```
+
+| config | rows | what it is |
+|---|---|---|
+| **`cyber_all`** *(default)* | **279,480** | every document judged security-related, both judges merged |
+| `corpus` | 277,418 | v5 alone — uniform provenance, one judge |
+| `census` | 14,653 | full labels **including `not_cyber`** — the reference standard |
+| `judge_benchmark` | 1,992 | gold + both open-model runs, so the judge study is reproducible |
+
+The `census` config is the part most reusable outside this project: 14,653 Arabic
+documents individually labelled against a published rubric, with a justification
+each. As far as we know it is the first labelled Arabic cybersecurity
+domain-relevance dataset — usable to train a classifier, to evaluate a different
+filter, or to disagree with these labels in a measurable way.
+
+### Regenerating the intermediate artifacts
+
+The large working files are intentionally not tracked here:
 
 | Artifact | Size | How to obtain |
 |---|---|---|
 | `FineWeb2/*.jsonl.gz` (input) | ~1.7 GB | Sample of the `arb_Arab` subset of [FineWeb2 on Hugging Face](https://huggingface.co/datasets/HuggingFaceFW/fineweb-2) (1M records, 100 shards × 10k) |
 | `output/` (per-shard results) | ~365 MB | Regenerate with the array job — deterministic given the same inputs |
 | `result/cyber_arabic_ALL.{json,csv}` | ~365 MB | Regenerate with the merge job |
+| `result/cyber_arabic_v4_ALL.jsonl` (370,019 recs) | ~5.2 GB | Regenerate with the v4 parquet filter + merge jobs |
+| `result/cyber_arabic_v5_judged.jsonl` (277,418 recs) | ~4 GB | Or just download it from the Hub link above |
+| `evaluation/chat_judging/judged_corpus.json` | ~212 MB | `merge_chat_judgments.py --merge`, or the `census` config on the Hub |
+| `evaluation/out_full/` (raw judge verdicts) | ~169 MB | id+label for all 370,019 is committed at `evaluation/judge_benchmark/v5_verdicts_compact.jsonl` |
 
 The whole pipeline is deterministic: same shards + same keyword list ⇒ byte-identical corpus (modulo shard ordering, which is stabilized by sorting).
 
