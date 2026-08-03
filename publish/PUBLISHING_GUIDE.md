@@ -6,52 +6,34 @@ the push is deliberately manual.
 
 ---
 
-## Before anything: two decisions
+## Status: built and ready
 
-### 1. Publish the v4 corpus now, or wait for v5?
+`publish/hf_build/` already contains the v5 release, validated:
 
-| | v4 (ready today) | v5 (needs ~25–30 GPU-hours) |
+| config | rows | size |
 |---|---|---|
-| documents | 370,019 | ~276,000 |
-| precision | 0.715 | ~0.887 |
-| genuine documents | ~264,600 | ~244,900 |
+| `corpus` | 277,418 (v5, judged, precision 0.890) | 560 MB, 6 shards |
+| `census` | 14,653 frontier-labelled | 52 MB |
+| `judge_benchmark` | 1,992 gold + two open-model runs | 1.2 MB |
+| `keywords/` | lexicon + 4 tiers | 72 KB |
 
-**Recommendation: publish v4 now, add v5 as a second config later.** The Hub is
-versioned, `census` and `judge_benchmark` are finished and independently
-valuable, and a dataset that exists gets used while a better one is still
-queued. Adding a `corpus_v5` config later is a normal update, not a re-release —
-and keeping both lets users choose their own precision/recall trade-off, which
-is exactly the choice the numbers above frame.
-
-If you would rather ship once, finish v5 first (task #15) and publish both
-together.
-
-### 2. Pick the repo name
-
-**Already done: the card is set to `Alsumaitti/arabic-cybersecurity-web`** (the
-load example and the citation URL). If you want a different repo name, change it
-in `publish/DATASET_CARD.md` and re-copy — a dataset that cites the wrong URL in
-its own citation block looks careless.
+The card is in place as `README.md` and names
+`Alsumaitti/arabic-cybersecurity-web`. **Skip to Step 3** unless you are
+rebuilding.
 
 ---
 
-## Step 1 — build the parquet
-
-```bash
-python publish/build_hf_dataset.py --out-dir publish/hf_build
-```
-
-The corpus is ~5 GB of JSONL and takes a while; it compresses to roughly 1–2 GB
-of zstd parquet in shards near 400 MB. To iterate on the small configs first:
-
-```bash
-python publish/build_hf_dataset.py --out-dir publish/hf_build --skip-corpus
-```
-
-To publish v5 instead once it exists:
+## Step 1 — build the parquet (already done)
 
 ```bash
 python publish/build_hf_dataset.py --out-dir publish/hf_build --corpus result/cyber_arabic_v5_judged.jsonl --corpus-name v5
+```
+
+The v5 corpus is ~4 GB of JSONL; it compresses to ~560 MB of zstd parquet in
+shards near 400 MB. To iterate on the small configs only:
+
+```bash
+python publish/build_hf_dataset.py --out-dir publish/hf_build --skip-corpus
 ```
 
 Expected layout:
@@ -70,9 +52,9 @@ publish/hf_build/
 cp publish/DATASET_CARD.md publish/hf_build/README.md
 ```
 
-Then edit `publish/hf_build/README.md` and replace every `<YOUR-USERNAME>`
-(three occurrences: the load example, the citation URL, the citation `url`
-field).
+The card already names `Alsumaitti/arabic-cybersecurity-web` in both places (the
+load example and the citation `url`), so this needs no edit unless you are
+changing the repo name.
 
 ## Step 3 — install the client and log in
 
