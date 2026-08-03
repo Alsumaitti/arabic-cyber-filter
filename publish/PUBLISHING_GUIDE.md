@@ -28,9 +28,10 @@ together.
 
 ### 2. Pick the repo name
 
-The card uses `<YOUR-USERNAME>/arabic-cybersecurity-web` as a placeholder in
-three places. Decide the name now and replace it everywhere — a dataset that
-cites the wrong URL in its own citation block looks careless.
+**Already done: the card is set to `Alsumaitti/arabic-cybersecurity-web`** (the
+load example and the citation URL). If you want a different repo name, change it
+in `publish/DATASET_CARD.md` and re-copy — a dataset that cites the wrong URL in
+its own citation block looks careless.
 
 ---
 
@@ -110,7 +111,7 @@ while and prefer a wired connection.
 ## Step 6 — verify it actually loads
 
 ```bash
-python -c "from datasets import load_dataset; d=load_dataset('<YOUR-USERNAME>/arabic-cybersecurity-web','census',split='train'); print(d); print(d[0]['label'], d[0]['justification'])"
+python -c "from datasets import load_dataset; d=load_dataset('Alsumaitti/arabic-cybersecurity-web','census',split='train'); print(d); print(d[0]['label'], d[0]['justification'])"
 ```
 
 Check on the Hub page that: the viewer renders all three configs, Arabic text
@@ -124,7 +125,9 @@ dropdown lists `corpus`, `census`, `judge_benchmark`.
 Worth ten minutes, because these are the things that are awkward to fix after
 people start downloading.
 
-- [ ] `<YOUR-USERNAME>` replaced in all three places in `README.md`
+- [x] Repo name set to `Alsumaitti/arabic-cybersecurity-web` in the card
+- [ ] **The write token used for `hf auth login` is a fresh one** — never one that
+      has been pasted into a chat, a file, or a command argument
 - [ ] License is **odc-by**, and FineWeb2 + Common Crawl are both credited — this
       is a *requirement* of the source license, not a courtesy
 - [ ] The takedown paragraph names a channel you will actually monitor

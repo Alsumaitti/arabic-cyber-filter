@@ -69,7 +69,7 @@ the filter is reproducible rather than merely described.
 
 ```python
 from datasets import load_dataset
-ds = load_dataset("<YOUR-USERNAME>/arabic-cybersecurity-web", "corpus", split="train")
+ds = load_dataset("Alsumaitti/arabic-cybersecurity-web", "corpus", split="train")
 ```
 
 | field | description |
@@ -360,7 +360,7 @@ This dataset is derived from:
             full-census LLM-judged reference standard},
   author = {Alsumaitti, Osamah},
   year   = {2026},
-  url    = {https://huggingface.co/datasets/<YOUR-USERNAME>/arabic-cybersecurity-web},
+  url    = {https://huggingface.co/datasets/Alsumaitti/arabic-cybersecurity-web},
   note   = {Derived from FineWeb2 (ODC-By 1.0)}
 }
 ```
