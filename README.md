@@ -94,39 +94,39 @@ flowchart TD
 
 ```
 arabic-cyber-filter/
-├── scripts/
-│   ├── filter_cyber_arabic.py    # Stage 1: keyword filter (batch or single-shard mode)
-│   ├── merge_cyber_outputs.py    # Stage 2: merge per-shard outputs into one corpus
-│   ├── filter_cyber_arabic_tiered.py  # v3: TIERED acceptance rule filter (resumable, .done markers)
-│   ├── merge_cyber_outputs_tiered.py  # v3 merge (schema-aware: tiers_found, accept_rule)
-│   └── llm_judge_api.py          # LLM-as-judge over the whole corpus (Claude Batches API)
-├── sbatch_scripts/
-│   ├── filter_cyber_arabic.sh    # SLURM array job — one task per shard
-│   ├── merge_cyber_outputs.sh    # SLURM merge job — run after the array finishes
-│   ├── filter_cyber_tiered.sh    # v3 SLURM array job (cpu-all, resumable: resubmit = resume)
-│   └── merge_cyber_tiered.sh     # v3 merge job with .done completeness gate
-├── TIERED_RUN_GUIDE.md           # step-by-step: move tier files to the cluster + run v3
+├── scripts/                                # the pipeline itself
+│   ├── filter_cyber_arabic.py              # v1/v2: keyword filter over .jsonl.gz shards
+│   ├── filter_cyber_arabic_tiered.py       # v3: tiered acceptance rule (resumable)
+│   ├── filter_cyber_parquet_tiered.py      # v4: same rule over 70M parquet rows
+│   ├── merge_cyber_outputs{,_tiered}.py    # merge per-shard outputs
+│   ├── merge_v4_streaming.py               # v4 merge - streams, never loads the corpus
+│   ├── llm_judge_api.py                    # frontier judge via the Claude Batches API
+│   ├── judge_with_gemma.py                 # open 31B judge: token-budgeted, resumable
+│   ├── prepare_v4_full_prompts.py          # build judge prompts for all 370k
+│   ├── sample_v4_for_judging.py            # rule-stratified reservoir sample
+│   └── bench_judge_throughput.py           # find the batch size before spending days
+├── sbatch_scripts/                         # SLURM jobs, one per pipeline stage
+│   ├── filter_cyber_{arabic,tiered,parquet_tiered}.sh
+│   ├── merge_{cyber_outputs,cyber_tiered,v4}.sh
+│   ├── {prepare_v4_full,sample_v4_for_judging}.sh
+│   ├── judge_{gemma_validate,v4_sample,v4_full}.sh
+│   └── {setup_gemma_judge,setup_and_inspect_parquet,bench_batch_size}.sh
 ├── keywords/
-│   ├── arabic_cyber_keywords.txt          # 1,209-term Arabic cybersecurity lexicon (original, unchanged)
-│   ├── missing_cybersecurity_keywords.txt # 24 recall-gap terms mined from missed records (mostly English: VPN, Firewall…)
-│   ├── all_cyber_keywords.txt             # combined 1,233-keyword lexicon (original + missing, exact-deduped)
-│   └── tiers/                             # evidence-tiered lexicon learned from the LLM judge
-│       └── tier{1..4}_keywords.txt        #   tier 1 = trustworthy alone … tier 4 = needs 4+ co-hits
-├── evaluation/                   # LLM-as-judge verification (see evaluation/README.md)
-│   ├── README.md                 #   method overview + folder layout
-│   ├── JUDGE_PROTOCOL.md         #   the labelling rubric
-│   ├── RESULTS.md                #   written interpretation of the numbers
-│   ├── scripts/                  #   make_samples.py, make_unmatched_sample.py, compute_metrics.py
-│   ├── samples/                  #   judge-view inputs shown to the LLM
-│   ├── judgments/                #   raw per-record verdicts (matched_*.json, unmatched_*.json)
-│   ├── chat_judging/             #   full-corpus census: 587 per-chunk verdicts + merged judged_corpus.json (not tracked, ~202 MB)
-│   └── results/                  #   metrics.json, judged_sample_*.json/.csv, keyword_tiers_evidence.tsv (per-keyword audit trail)
-├── samples/
-│   └── sample_output.json        # 5 example records from the final corpus
-├── result/                       #  (not tracked) final merged corpus
-├── FineWeb2/                     # (not tracked) input shards  *.jsonl.gz
-├── output/                       # (not tracked) per-shard filtered outputs
-└── logs/                         # (not tracked) SLURM stdout/stderr logs
+│   ├── arabic_cyber_keywords.txt           # 1,209-term original lexicon
+│   ├── missing_cybersecurity_keywords.txt  # 24 recall-gap terms (mostly English)
+│   ├── all_cyber_keywords.txt              # combined 1,233-term lexicon
+│   ├── deletion_candidates.txt             # 74 terms with zero good appearances
+│   └── tiers_clean/tier{1..4}_keywords.txt # evidence-derived tiers (640 terms)
+├── evaluation/
+│   ├── RESULTS.md                          # every measured number, with CIs
+│   ├── JUDGE_PROTOCOL.md                   # the rubric the judges were given
+│   ├── JUDGE_BENCHMARK.md                  # open 31B vs frontier: the study
+│   ├── chat_judging/                       # the 587-chunk census campaign
+│   ├── judge_benchmark/                    # verdicts, agreement reports, statistics
+│   └── scripts/                            # sampling, scoring, tiering, statistics
+├── TIERED_RUN_GUIDE.md                     # moving the tier files to the cluster
+├── PROPOSAL.md                             # the research proposal this came from
+└── presentation/                           # proposal deck and document
 ```
 
 > The `FineWeb2/`, `output/`, `result/`, and `logs/` directories are excluded from git because of their size (~2.4 GB combined). See [Data availability](#data-availability).
